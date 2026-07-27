@@ -38,7 +38,7 @@ async function execute(interaction, ctx) {
 
   try {
     await ctx.processControl.controlService('restart');
-    ctx.auditLog.appendAuditEntry({ guildId: interaction.guildId, actor: interaction.user.tag, command: 'restart', waittime });
+    ctx.auditLog.appendAuditEntry({ guildId: interaction.guildId, actor: interaction.user.tag, actorId: interaction.user.id, command: 'restart', waittime });
     await interaction.followUp({ embeds: [successEmbed('Server restart triggered.')] });
   } catch (err) {
     await interaction.followUp({ embeds: [errorEmbed(`Failed to restart: ${err.message}`)], ephemeral: true });

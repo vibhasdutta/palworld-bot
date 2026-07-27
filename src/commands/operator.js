@@ -66,6 +66,7 @@ async function execute(interaction, ctx) {
     ctx.auditLog.appendAuditEntry({
       guildId,
       actor: interaction.user.tag,
+      actorId: interaction.user.id,
       command: 'operator',
       action: sub,
       target: target.id,

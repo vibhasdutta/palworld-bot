@@ -2,31 +2,38 @@ function findGuildChannels(channels, guildId) {
   return channels.find((c) => c.guildId === guildId) || null;
 }
 
+// Real @mention when we have the Discord user ID (actorId), falling back to
+// the plain tag for older audit entries written before actorId existed.
+function actorMention(entry) {
+  return entry.actorId ? `<@${entry.actorId}>` : `**${entry.actor}**`;
+}
+
 function formatAuditEntry(entry) {
+  const actor = actorMention(entry);
   switch (entry.command) {
     case 'announce':
-      return `**${entry.actor}** announced: "${entry.message}"`;
+      return `${actor} announced: "${entry.message}"`;
     case 'kick':
-      return `**${entry.actor}** kicked \`${entry.target}\` — ${entry.reason}`;
+      return `${actor} kicked \`${entry.target}\` — ${entry.reason}`;
     case 'ban':
-      return `**${entry.actor}** banned \`${entry.target}\` — ${entry.reason}`;
+      return `${actor} banned \`${entry.target}\` — ${entry.reason}`;
     case 'unban':
-      return `**${entry.actor}** unbanned \`${entry.target}\``;
+      return `${actor} unbanned \`${entry.target}\``;
     case 'save':
-      return `**${entry.actor}** saved the world`;
+      return `${actor} saved the world`;
     case 'start':
-      return `**${entry.actor}** started the server`;
+      return `${actor} started the server`;
     case 'restart':
-      return `**${entry.actor}** restarted the server`;
+      return `${actor} restarted the server`;
     case 'stop':
-      return `**${entry.actor}** stopped the server${entry.force ? ' (force)' : ''}`;
+      return `${actor} stopped the server${entry.force ? ' (force)' : ''}`;
     case 'operator': {
       const verb = entry.action.startsWith('add') ? 'granted operator to' : 'revoked operator from';
       const mention = entry.targetType === 'role' ? `<@&${entry.target}>` : `<@${entry.target}>`;
-      return `**${entry.actor}** ${verb} ${mention}`;
+      return `${actor} ${verb} ${mention}`;
     }
     default:
-      return `**${entry.actor}** ran ${entry.command}`;
+      return `${actor} ran ${entry.command}`;
   }
 }
 

@@ -8,7 +8,7 @@ const tier = 'admin';
 async function execute(interaction, ctx) {
   try {
     await ctx.processControl.controlService('start');
-    ctx.auditLog.appendAuditEntry({ guildId: interaction.guildId, actor: interaction.user.tag, command: 'start' });
+    ctx.auditLog.appendAuditEntry({ guildId: interaction.guildId, actor: interaction.user.tag, actorId: interaction.user.id, command: 'start' });
     await interaction.reply({ embeds: [successEmbed('Server start triggered.')] });
   } catch (err) {
     await interaction.reply({ embeds: [errorEmbed(`Failed to start: ${err.message}`)], ephemeral: true });

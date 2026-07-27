@@ -12,7 +12,7 @@ async function execute(interaction, ctx) {
   const userid = interaction.options.getString('userid', true);
   try {
     await ctx.palworld.unban(userid);
-    ctx.auditLog.appendAuditEntry({ guildId: interaction.guildId, actor: interaction.user.tag, command: 'unban', target: userid });
+    ctx.auditLog.appendAuditEntry({ guildId: interaction.guildId, actor: interaction.user.tag, actorId: interaction.user.id, command: 'unban', target: userid });
     await ctx.palworld.announce(`${userid} was unbanned.`).catch(() => {});
     await interaction.reply({ embeds: [successEmbed(`Unbanned \`${userid}\`.`)] });
   } catch (err) {

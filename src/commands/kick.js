@@ -14,7 +14,7 @@ async function execute(interaction, ctx) {
   const reason = interaction.options.getString('reason') || 'Kicked by an admin.';
   try {
     await ctx.palworld.kick(userid, reason);
-    ctx.auditLog.appendAuditEntry({ guildId: interaction.guildId, actor: interaction.user.tag, command: 'kick', target: userid, reason });
+    ctx.auditLog.appendAuditEntry({ guildId: interaction.guildId, actor: interaction.user.tag, actorId: interaction.user.id, command: 'kick', target: userid, reason });
     await ctx.palworld.announce(`${userid} was kicked. Reason: ${reason}`).catch(() => {});
     await interaction.reply({ embeds: [successEmbed(`Kicked \`${userid}\`.`)] });
   } catch (err) {

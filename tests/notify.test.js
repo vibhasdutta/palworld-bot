@@ -8,6 +8,20 @@ test('findGuildChannels returns the matching entry or null', () => {
   assert.equal(findGuildChannels(channels, 'UNKNOWN'), null);
 });
 
+test('formatAuditEntry uses a real @mention when actorId is present', () => {
+  assert.equal(
+    formatAuditEntry({ actor: 'alice', actorId: '12345', command: 'kick', target: 'steam_1', reason: 'AFK' }),
+    '<@12345> kicked `steam_1` — AFK',
+  );
+});
+
+test('formatAuditEntry falls back to the plain tag for older entries with no actorId', () => {
+  assert.equal(
+    formatAuditEntry({ actor: 'alice', command: 'save' }),
+    '**alice** saved the world',
+  );
+});
+
 test('formatAuditEntry produces a readable line per command type', () => {
   assert.equal(
     formatAuditEntry({ actor: 'alice', command: 'kick', target: 'steam_1', reason: 'AFK' }),

@@ -10,6 +10,7 @@ const {
   loadServersFile,
   findGuildServer,
   findGuildServers,
+  allCompleteServers,
 } = require('./config');
 const { resolveTier, hasAccess, findGuildRoles } = require('./permissions');
 const { createPalworldClient } = require('./palworldClient');
@@ -20,6 +21,7 @@ const { createNotifier, formatAuditEntry } = require('./notify');
 const { autocompleteServer } = require('./serverOption');
 const { createExpectedActions } = require('./expectedActions');
 const { watchPm2 } = require('./pm2Watcher');
+const { createPlayerPoller } = require('./playerPoller');
 const loadCommands = require('./commands');
 
 const BOT_PM2_NAME = 'palworld-bot';
@@ -185,11 +187,21 @@ watchPm2({
   },
 });
 
+// Palworld's REST API has no join/leave events -- only a snapshot of who's
+// currently online (see playerPoller.js) -- so this polls it and diffs.
+// Read-only (GET /v1/api/players), never affects the server or players.
+const playerPoller = createPlayerPoller({
+  getServers: () => allCompleteServers(config.servers),
+  createClient: createPalworldClient,
+  notify,
+});
+
 client.once(Events.ClientReady, async (readyClient) => {
   console.log(`Logged in as ${readyClient.user.tag}`);
   for (const guild of readyClient.guilds.cache.values()) {
     await onboardGuild(guild.id, guild.name);
   }
+  playerPoller.start();
 });
 
 client.on(Events.GuildCreate, (guild) => {
@@ -218,7 +230,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
   if (!hasAccess(tier, command.tier)) {
     await interaction.reply({ embeds: [errorEmbed('You do not have permission to use this command.')], ephemeral: true });
-    notify.botLog(interaction.guildId, `**${interaction.user.tag}** was denied \`/${interaction.commandName}\` (no ${command.tier} access).`).catch(() => {});
+    notify.botLog(interaction.guildId, `<@${interaction.user.id}> was denied \`/${interaction.commandName}\` (no ${command.tier} access).`).catch(() => {});
     return;
   }
 
@@ -243,7 +255,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     } else {
       await interaction.reply(payload);
     }
-    notify.botLog(interaction.guildId, `**Error** running \`/${interaction.commandName}\` for **${interaction.user.tag}**: ${err.message}`).catch(() => {});
+    notify.botLog(interaction.guildId, `**Error** running \`/${interaction.commandName}\` for <@${interaction.user.id}>: ${err.message}`).catch(() => {});
   }
 });
 

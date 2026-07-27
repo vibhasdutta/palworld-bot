@@ -71,6 +71,18 @@ function findGuildServers(servers, guildId) {
   return entry ? entry.servers.filter(isCompleteServer) : [];
 }
 
+// Every complete server across every guild, flattened, with its owning
+// guildId attached -- what the player-join/leave poller iterates over.
+function allCompleteServers(servers) {
+  const flat = [];
+  for (const entry of servers) {
+    for (const server of entry.servers.filter(isCompleteServer)) {
+      flat.push({ guildId: entry.guildId, ...server });
+    }
+  }
+  return flat;
+}
+
 // Resolves which single server a command should act on.
 // - No label given + exactly one server configured -> that one (the common
 //   case: most guilds only ever have one server, no need to specify it).
@@ -155,6 +167,7 @@ module.exports = {
   loadServersFile,
   findGuildServer,
   findGuildServers,
+  allCompleteServers,
   ensureGuildEntry,
   mutateGuildRoles,
 };
