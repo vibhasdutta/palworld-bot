@@ -41,7 +41,7 @@ Boot persistence is already installed (`systemctl status pm2-morfit` — a syste
     "operator": { "roleIds": [...], "userIds": [...] }
   }
   ```
-  The bot **creates this entry automatically** the moment it joins a guild (or on its own startup for guilds it's already in) — you never need to look up a guild ID by hand. New entries start with empty `roleIds`/`userIds`, meaning **nobody has access yet**. Add role IDs and/or individual user IDs to `admin`/`operator`, then `pm2 restart palworld-bot` to apply. A role and a user ID work independently — either grants that tier.
+  The bot **creates this entry automatically** the moment it joins a guild (or on its own startup for guilds it's already in) — you never need to look up a guild ID by hand. New entries start with empty `roleIds`/`userIds`, meaning **nobody has access yet**. Add role IDs and/or individual user IDs to `admin`/`operator` — the bot **watches this file and hot-reloads it within ~1 second of saving**, no restart needed. A role and a user ID work independently — either grants that tier.
 
 ## Commands the bot exposes
 
@@ -61,7 +61,7 @@ Boot persistence is already installed (`systemctl status pm2-morfit` — a syste
 
 ## Deploying code changes
 
-There's no CI/CD here — updates are manual:
+There's no CI/CD here — updates are manual. **Only overwrite the tracked source files** — never `rm -rf`/replace the whole `palworld-bot` directory, since `config/guilds.json` and `data/audit-log.json` are gitignored (not in git) and live only on the VM; wiping the directory destroys them.
 
 ```bash
 # from your machine: re-copy changed files to the VM, e.g. via pscp/scp
@@ -78,6 +78,8 @@ If slash commands themselves changed (new command, renamed option, etc.), also r
 npm run deploy-commands
 ```
 
+**Restarting a single already-running app**: use `pm2 restart <name>` by name. Do **not** re-run `pm2 start deploy/ecosystem.config.js` (even with `--only`) against an app that's already running — in testing this caused the *other* app defined in the same ecosystem file to receive SIGINT and stop, even though it wasn't targeted. Only use `pm2 start deploy/ecosystem.config.js` for the very first bootstrap of both apps.
+
 ## First-time access setup (still needed)
 
-The bot is online and has auto-registered itself in every guild it's been invited to, but **no one has admin/operator access yet**. Edit `config/guilds.json` on the VM to add your Discord user ID (or a role ID) to the `admin` tier, then `pm2 restart palworld-bot`.
+The bot is online and has auto-registered itself in every guild it's been invited to, but **no one has admin/operator access yet**. Edit `config/guilds.json` on the VM to add your Discord user ID (or a role ID) to the `admin` tier — it hot-reloads automatically, no restart needed.

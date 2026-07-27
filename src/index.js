@@ -1,3 +1,5 @@
+const fs = require('node:fs');
+const path = require('node:path');
 const { Client, GatewayIntentBits, Events, REST, Routes, Options } = require('discord.js');
 const { loadConfig, ensureGuildEntry, loadGuildsFile } = require('./config');
 const { resolveTier, hasAccess, findGuildRoles } = require('./permissions');
@@ -59,6 +61,31 @@ async function onboardGuild(guildId, guildName) {
     console.error(`Failed to register commands in guild ${guildId}:`, err.message);
   }
 }
+
+// ponytail: watch the directory, not the file directly — editors like nano/vim
+// replace the file on save (write temp + rename), which breaks a watch held on
+// the original inode. Debounced since a single save can fire multiple events.
+function watchGuildsFile() {
+  const dir = path.dirname(config.guildsPath);
+  const target = path.basename(config.guildsPath);
+  fs.mkdirSync(dir, { recursive: true });
+
+  let debounceTimer = null;
+  fs.watch(dir, (eventType, filename) => {
+    if (filename !== target) return;
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      try {
+        config.guilds = loadGuildsFile(config.guildsPath);
+        console.log('Reloaded config/guilds.json.');
+      } catch (err) {
+        console.error('Failed to reload config/guilds.json (keeping previous values):', err.message);
+      }
+    }, 200);
+  });
+}
+
+watchGuildsFile();
 
 client.once(Events.ClientReady, async (readyClient) => {
   console.log(`Logged in as ${readyClient.user.tag}`);
