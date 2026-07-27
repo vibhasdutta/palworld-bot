@@ -11,6 +11,7 @@ const {
   findGuildServer,
   findGuildServers,
   allCompleteServers,
+  resolveServerConnection,
 } = require('./config');
 const { resolveTier, hasAccess, findGuildRoles } = require('./permissions');
 const { createPalworldClient } = require('./palworldClient');
@@ -74,7 +75,8 @@ const baseCtx = { config, auditLog };
 function resolveServerCtx(guildId, label) {
   const server = findGuildServer(config.servers, guildId, label);
   if (server) {
-    const rawPalworld = createPalworldClient({ baseUrl: server.restApiUrl, password: server.restApiPassword });
+    const { restApiUrl, restApiPassword } = resolveServerConnection(server);
+    const rawPalworld = createPalworldClient({ baseUrl: restApiUrl, password: restApiPassword });
     return {
       ctx: {
         ...baseCtx,
@@ -204,7 +206,7 @@ watchPm2({
 // currently online (see playerPoller.js) -- so this polls it and diffs.
 // Read-only (GET /v1/api/players), never affects the server or players.
 const playerPoller = createPlayerPoller({
-  getServers: () => allCompleteServers(config.servers),
+  getServers: () => allCompleteServers(config.servers).map((s) => ({ ...s, ...resolveServerConnection(s) })),
   createClient: createPalworldClient,
   notify,
 });

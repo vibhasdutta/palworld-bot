@@ -46,12 +46,12 @@ The bot auto-joins every guild it's invited to and creates empty entries for it,
    ```
    Saves apply automatically within ~1 second — no restart needed.
 
-4. **Point it at a Palworld server.** Edit `/home/$USER/palworld-bot/config/servers.json` for the same `guildId` and add one entry to that guild's `servers` array, giving it a short `label`:
+4. **Point it at a Palworld server.** Edit `/home/$USER/palworld-bot/config/servers.json` for the same `guildId` and add one entry to that guild's `servers` array, giving it a short `label`. Use `settingsFilePath` (not `restApiUrl`/`restApiPassword` directly) so the REST password is always read live from the ini instead of a copy that can go stale:
    ```json
    {
      "guildId": "<guild-id>",
      "servers": [
-       { "label": "main", "restApiUrl": "http://localhost:8212", "restApiPassword": "<the real AdminPassword from PalWorldSettings.ini>", "pm2ProcessName": "palworld" }
+       { "label": "main", "settingsFilePath": "/home/$USER/palworld/Pal/Saved/Config/LinuxServer/PalWorldSettings.ini", "pm2ProcessName": "palworld" }
      ]
    }
    ```
@@ -113,7 +113,7 @@ All four files live in `/home/$USER/palworld-bot/config/`, are gitignored (VM-on
 - **`guilds.json`** — registry of known guilds: `[{ "guildId": "..." }]`. Informational, not something you edit.
 - **`roles.json`** — who has access, per guild: `{ "guildId": "...", "admin": { "roleIds": [...], "userIds": [...] }, "operator": { "roleIds": [...], "userIds": [...] } }`. Empty arrays = nobody has that tier. A role ID and a user ID work independently.
 - **`channels.json`** — where the bot posts, per guild: `{ "guildId": "...", "botChannelId": "...", "serverChannelId": "..." }`. `botChannelId` gets bot errors/permission-denials; `serverChannelId` gets a live feed of every successful admin action (mirrors `/home/$USER/palworld-bot/data/audit-log.json`) plus player join/leave, world-save, and external `pm2` action alerts. Blank (`""`) = that stream is off. Whoever performed an action is a real `@mention`, not just plain text. Everything posted to either channel is a color-coded, timestamped embed (green = success, red = danger/kick/ban/stop, orange = warning, blue = info) rather than a plain-text message — see `src/notify.js`'s `LEVEL_COLORS` if you want to change the palette.
-- **`servers.json`** — which Palworld server(s) the guild controls, if any: `{ "guildId": "...", "servers": [{ "label": "...", "restApiUrl": "...", "restApiPassword": "...", "pm2ProcessName": "...", "saveFilePath": "..." }] }`. Empty `servers` array = guild is inert (see Multi-tenancy above). One entry = commands don't need to specify it; more than one = commands need the `server` option to say which. `saveFilePath` is optional — absolute path to that server's `Level.sav` (see "World save detection" below); leave it out to skip that feature for a server.
+- **`servers.json`** — which Palworld server(s) the guild controls, if any: `{ "guildId": "...", "servers": [{ "label": "...", "restApiUrl": "...", "restApiPassword": "...", "pm2ProcessName": "...", "saveFilePath": "...", "settingsFilePath": "..." }] }`. Empty `servers` array = guild is inert (see Multi-tenancy above). One entry = commands don't need to specify it; more than one = commands need the `server` option to say which. `saveFilePath` is optional — absolute path to that server's `Level.sav` (see "World save detection" below). **`settingsFilePath`** is the recommended way to set up `restApiUrl`/`restApiPassword`: point it at that server's `PalWorldSettings.ini` and the bot reads `AdminPassword`/`RESTAPIPort` fresh from the ini on every single request instead of trusting a copy pasted into `servers.json` — the password can never drift out of sync again, because there's no longer a second copy to go stale. With `settingsFilePath` set, `restApiUrl`/`restApiPassword` are ignored entirely (leave them blank). Without it, the server falls back to whatever's stored directly in `restApiUrl`/`restApiPassword` — which you're then responsible for updating by hand if `AdminPassword` ever changes in-game.
 
 **`/home/$USER/palworld-bot/.env`** is separate from all of that — just `DISCORD_TOKEN` and `DISCORD_CLIENT_ID`. Not hot-reloaded; run `pm2 restart palworld-bot` after editing it.
 
@@ -139,9 +139,10 @@ Every command except `/operator` takes an optional `server` option (autocomplete
 ## Palworld REST API
 
 - Enabled per-server in that install's `PalWorldSettings.ini`: `RESTAPIEnabled=True`, `RESTAPIPort=<port>`
-- Auth: HTTP Basic, username `admin`, password = that guild's `restApiPassword` in `config/servers.json`
+- Auth: HTTP Basic, username `admin`, password = `AdminPassword` in that server's `PalWorldSettings.ini` — read live via `settingsFilePath` (recommended, see Config file reference above) rather than a copy stored in `servers.json`
 - Bound to localhost only — never open the REST port to the internet (check the Azure NSG has no inbound rule for it)
 - Manual smoke test: `cd /home/$USER/palworld-bot && node --env-file=.env scripts/check-rest-api.js <guildId>`
+- **`401 Unauthorized ... AdminPassword is empty`**: this is Palworld's own server refusing *all* REST auth because `AdminPassword=""` in the live ini — not a mismatched password, an *unset* one. No client-side fix is possible; `AdminPassword` must be set to a real value in `PalWorldSettings.ini` and **`palworld` restarted** (the ini only loads at startup) before REST calls will work again. Gameplay itself is unaffected in the meantime — only bot commands are down.
 - **Gotcha (already handled in `/stop`'s code — documented so it isn't reintroduced):** the REST API's `shutdown`/`stop` endpoints make the PalServer *process itself* exit. Since the game server's PM2 entry has `autorestart: true`, PM2 can't tell that apart from a crash and brings it right back up within seconds. `/stop` waits out the shutdown, then explicitly runs `pm2 stop <name>` so PM2 knows it was intentional. If you ever call the REST shutdown endpoint directly (bypassing the bot), follow it with a manual `pm2 stop <name>`.
 
 ---

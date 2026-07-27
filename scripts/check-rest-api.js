@@ -1,4 +1,4 @@
-const { loadConfig, findGuildServer, findGuildServers } = require('../src/config');
+const { loadConfig, findGuildServer, findGuildServers, resolveServerConnection } = require('../src/config');
 const { createPalworldClient } = require('../src/palworldClient');
 
 const guildId = process.argv[2];
@@ -24,7 +24,8 @@ if (!guildId) {
     process.exit(1);
   }
 
-  const client = createPalworldClient({ baseUrl: server.restApiUrl, password: server.restApiPassword });
+  const { restApiUrl, restApiPassword } = resolveServerConnection(server);
+  const client = createPalworldClient({ baseUrl: restApiUrl, password: restApiPassword });
   const info = await client.getInfo();
   console.log(`Connected to Palworld REST API for guild ${guildId} (server "${server.label}"):`, info);
 })();

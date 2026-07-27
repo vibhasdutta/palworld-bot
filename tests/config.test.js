@@ -10,6 +10,8 @@ const {
   loadServersFile,
   findGuildServer,
   findGuildServers,
+  readIniOptionSettings,
+  resolveServerConnection,
   ensureGuildEntry,
   mutateGuildRoles,
   loadConfig,
@@ -62,7 +64,7 @@ test('loadServersFile parses a guild\'s server list and defaults missing fields 
   ]));
 
   assert.deepEqual(loadServersFile(serversPath), [
-    { guildId: 'G1', servers: [{ label: 'main', restApiUrl: 'http://localhost:8212', restApiPassword: null, pm2ProcessName: null, saveFilePath: null }] },
+    { guildId: 'G1', servers: [{ label: 'main', restApiUrl: 'http://localhost:8212', restApiPassword: null, pm2ProcessName: null, saveFilePath: null, settingsFilePath: null }] },
   ]);
   fs.rmSync(dir, { recursive: true, force: true });
 });
@@ -114,6 +116,46 @@ test('findGuildServer with a label returns the matching server even among severa
 test('findGuildServer with an unknown label returns null', () => {
   const servers = [{ guildId: 'G1', servers: [complete('main', 'palworld')] }];
   assert.equal(findGuildServer(servers, 'G1', 'nope'), null);
+});
+
+test('findGuildServers treats a settingsFilePath-only server (no restApiUrl/restApiPassword) as complete', () => {
+  const server = { label: 'main', pm2ProcessName: 'palworld', settingsFilePath: '/x/PalWorldSettings.ini', restApiUrl: null, restApiPassword: null, saveFilePath: null };
+  const servers = [{ guildId: 'G1', servers: [server] }];
+  assert.deepEqual(findGuildServers(servers, 'G1'), [server]);
+});
+
+test('readIniOptionSettings extracts AdminPassword and RESTAPIPort from the ini\'s OptionSettings line', () => {
+  const iniContent = 'OptionSettings=(Difficulty=None,AdminPassword="secret123",PublicPort=8211,RESTAPIEnabled=True,RESTAPIPort=8212)';
+  const result = readIniOptionSettings('/fake/PalWorldSettings.ini', () => iniContent);
+  assert.deepEqual(result, { restApiPassword: 'secret123', restApiPort: '8212' });
+});
+
+test('readIniOptionSettings returns an empty password (not null) when AdminPassword="" in the ini', () => {
+  const iniContent = 'OptionSettings=(AdminPassword="",RESTAPIPort=8212)';
+  const result = readIniOptionSettings('/fake/PalWorldSettings.ini', () => iniContent);
+  assert.equal(result.restApiPassword, '');
+});
+
+test('readIniOptionSettings returns null if the file can\'t be read', () => {
+  const result = readIniOptionSettings('/missing.ini', () => { throw new Error('ENOENT'); });
+  assert.equal(result, null);
+});
+
+test('resolveServerConnection uses the stored restApiUrl/restApiPassword when no settingsFilePath is set', () => {
+  const server = { restApiUrl: 'http://localhost:8212', restApiPassword: 'stored-pw' };
+  assert.deepEqual(resolveServerConnection(server), { restApiUrl: 'http://localhost:8212', restApiPassword: 'stored-pw' });
+});
+
+test('resolveServerConnection reads live values from the ini when settingsFilePath is set, overriding stored ones', () => {
+  const server = { restApiUrl: 'http://localhost:9999', restApiPassword: 'stale-pw', settingsFilePath: '/fake.ini' };
+  const readFileSync = () => 'OptionSettings=(AdminPassword="fresh-pw",RESTAPIPort=8212)';
+  assert.deepEqual(resolveServerConnection(server, readFileSync), { restApiUrl: 'http://localhost:8212', restApiPassword: 'fresh-pw' });
+});
+
+test('resolveServerConnection falls back to stored values if the ini can\'t be read', () => {
+  const server = { restApiUrl: 'http://localhost:8212', restApiPassword: 'stored-pw', settingsFilePath: '/missing.ini' };
+  const readFileSync = () => { throw new Error('ENOENT'); };
+  assert.deepEqual(resolveServerConnection(server, readFileSync), { restApiUrl: 'http://localhost:8212', restApiPassword: 'stored-pw' });
 });
 
 test('ensureGuildEntry registers a new guild across all four files with empty defaults', () => {

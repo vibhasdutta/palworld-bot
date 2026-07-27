@@ -56,6 +56,13 @@ function normalizeServer(server) {
     // watching the save file's mtime instead -- only possible if we know
     // where it is. Leave unset to skip that detection for this server.
     saveFilePath: server.saveFilePath || null,
+    // Optional: absolute path to this server's PalWorldSettings.ini. When
+    // set, restApiUrl/restApiPassword above are ignored in favor of reading
+    // AdminPassword and RESTAPIPort straight from the ini on every use (see
+    // resolveServerConnection) -- the ini is the game's own source of truth
+    // for that password, so it can never drift out of sync with a copy
+    // pasted into servers.json again.
+    settingsFilePath: server.settingsFilePath || null,
   };
 }
 
@@ -67,7 +74,44 @@ function loadServersFile(serversPath) {
 }
 
 function isCompleteServer(server) {
-  return Boolean(server?.label && server.restApiUrl && server.pm2ProcessName);
+  if (!server?.label || !server.pm2ProcessName) return false;
+  // Either a direct restApiUrl/restApiPassword pair, or a settingsFilePath
+  // to derive them from -- resolveServerConnection() handles the latter.
+  return Boolean(server.settingsFilePath || (server.restApiUrl && server.restApiPassword));
+}
+
+// Palworld packs everything into one line: OptionSettings=(key=val,...).
+// Pulling just AdminPassword/RESTAPIPort with a targeted regex (rather than
+// fully parsing that line) avoids the risk of a hand-rolled parser mangling
+// a value it doesn't need to touch -- see the design spec's note on why a
+// generic settings editor was deliberately not built.
+function readIniOptionSettings(iniPath, readFileSync = fs.readFileSync) {
+  let content;
+  try {
+    content = readFileSync(iniPath, 'utf8');
+  } catch {
+    return null;
+  }
+  return {
+    restApiPassword: content.match(/AdminPassword="([^"]*)"/)?.[1] ?? null,
+    restApiPort: content.match(/RESTAPIPort=(\d+)/)?.[1] ?? null,
+  };
+}
+
+// Resolves the actual restApiUrl/restApiPassword to connect with. If
+// settingsFilePath is set, these are read fresh from the live ini every
+// call instead of trusting a (possibly stale) copy in servers.json.
+function resolveServerConnection(server, readFileSync = fs.readFileSync) {
+  const fallback = { restApiUrl: server.restApiUrl, restApiPassword: server.restApiPassword };
+  if (!server.settingsFilePath) return fallback;
+
+  const live = readIniOptionSettings(server.settingsFilePath, readFileSync);
+  if (!live) return fallback;
+
+  return {
+    restApiUrl: live.restApiPort ? `http://localhost:${live.restApiPort}` : fallback.restApiUrl,
+    restApiPassword: live.restApiPassword,
+  };
 }
 
 // Every complete (fully-configured) server for a guild -- what /status etc.
@@ -174,6 +218,8 @@ module.exports = {
   findGuildServer,
   findGuildServers,
   allCompleteServers,
+  readIniOptionSettings,
+  resolveServerConnection,
   ensureGuildEntry,
   mutateGuildRoles,
 };
