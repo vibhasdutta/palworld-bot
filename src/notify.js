@@ -20,6 +20,11 @@ function formatAuditEntry(entry) {
       return `**${entry.actor}** restarted the server`;
     case 'stop':
       return `**${entry.actor}** stopped the server${entry.force ? ' (force)' : ''}`;
+    case 'operator': {
+      const verb = entry.action.startsWith('add') ? 'granted operator to' : 'revoked operator from';
+      const mention = entry.targetType === 'role' ? `<@&${entry.target}>` : `<@${entry.target}>`;
+      return `**${entry.actor}** ${verb} ${mention}`;
+    }
     default:
       return `**${entry.actor}** ran ${entry.command}`;
   }

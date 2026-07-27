@@ -61,6 +61,23 @@ function ensureGuildEntry(guildsPath, rolesPath, channelsPath, guildId) {
   return true;
 }
 
+// Reads roles.json, applies `mutate` to the (guild-specific) tier entry --
+// creating it with empty defaults first if this guild somehow isn't
+// registered yet -- and writes the result straight back. Used by the
+// /operator command so admins can grant/revoke access from Discord instead
+// of editing config/roles.json over SSH.
+function mutateGuildRoles(rolesPath, guildId, mutate) {
+  const roles = loadRolesFile(rolesPath);
+  let entry = roles.find((r) => r.guildId === guildId);
+  if (!entry) {
+    entry = { guildId, admin: { roleIds: [], userIds: [] }, operator: { roleIds: [], userIds: [] } };
+    roles.push(entry);
+  }
+  mutate(entry);
+  writeJsonArray(rolesPath, roles);
+  return entry;
+}
+
 function loadConfig(env = process.env) {
   const configDir = env.CONFIG_DIR || path.join(__dirname, '..', 'config');
   const guildsPath = env.GUILDS_CONFIG_PATH || path.join(configDir, 'guilds.json');
@@ -89,4 +106,5 @@ module.exports = {
   loadRolesFile,
   loadChannelsFile,
   ensureGuildEntry,
+  mutateGuildRoles,
 };

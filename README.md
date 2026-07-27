@@ -52,7 +52,9 @@ All three below live in `config/`, are gitignored (VM/local only), and are **aut
 | Tier | Commands |
 |---|---|
 | operator | `/status` `/players` `/announce` `/kick` `/ban` `/unban` `/save` |
-| admin | everything operator has, plus `/restart` `/start` `/stop` |
+| admin | everything operator has, plus `/restart` `/start` `/stop` `/operator` |
+
+`/operator add-role`, `add-user`, `remove-role`, `remove-user`, `list` manage who has **operator** access in the current guild, straight from Discord — edits `config/roles.json` for you (admin-only, on purpose: promoting someone to *admin* still requires editing `config/roles.json` directly, so that stays a deliberate manual step).
 
 `/ban`, `/restart`, `/stop` require a Confirm/Cancel button press before doing anything.
 

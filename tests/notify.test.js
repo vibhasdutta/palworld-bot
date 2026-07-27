@@ -18,6 +18,14 @@ test('formatAuditEntry produces a readable line per command type', () => {
     formatAuditEntry({ actor: 'alice', command: 'stop', force: true }),
     '**alice** stopped the server (force)',
   );
+  assert.equal(
+    formatAuditEntry({ actor: 'alice', command: 'operator', action: 'add-role', target: 'R1', targetType: 'role' }),
+    '**alice** granted operator to <@&R1>',
+  );
+  assert.equal(
+    formatAuditEntry({ actor: 'alice', command: 'operator', action: 'remove-user', target: 'U1', targetType: 'user' }),
+    '**alice** revoked operator from <@U1>',
+  );
 });
 
 test('createNotifier does not touch the Discord client when no channel is configured ("if not given, no sending")', async () => {

@@ -8,6 +8,7 @@ const {
   loadRolesFile,
   loadChannelsFile,
   ensureGuildEntry,
+  mutateGuildRoles,
   loadConfig,
 } = require('../src/config');
 
@@ -78,6 +79,33 @@ test('ensureGuildEntry is a no-op for an already-registered guild', () => {
 
   assert.equal(addedAgain, false);
   assert.equal(loadGuildsFile(guildsPath).length, 1);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('mutateGuildRoles adds to an existing guild\'s operator roleIds and persists it', () => {
+  const dir = tmpConfigDir();
+  const rolesPath = path.join(dir, 'roles.json');
+  fs.writeFileSync(rolesPath, JSON.stringify([
+    { guildId: 'G1', admin: { roleIds: [], userIds: [] }, operator: { roleIds: [], userIds: [] } },
+  ]));
+
+  const entry = mutateGuildRoles(rolesPath, 'G1', (e) => e.operator.roleIds.push('R1'));
+
+  assert.deepEqual(entry.operator.roleIds, ['R1']);
+  assert.deepEqual(loadRolesFile(rolesPath)[0].operator.roleIds, ['R1']);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('mutateGuildRoles creates the guild entry if it does not exist yet', () => {
+  const dir = tmpConfigDir();
+  const rolesPath = path.join(dir, 'roles.json');
+  fs.writeFileSync(rolesPath, JSON.stringify([]));
+
+  mutateGuildRoles(rolesPath, 'NEW', (e) => e.operator.userIds.push('U1'));
+
+  assert.deepEqual(loadRolesFile(rolesPath), [
+    { guildId: 'NEW', admin: { roleIds: [], userIds: [] }, operator: { roleIds: [], userIds: ['U1'] } },
+  ]);
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
