@@ -3,44 +3,58 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { loadRolesFile, loadConfig } = require('../src/config');
+const { loadGuildsFile, loadConfig } = require('../src/config');
 
-test('loadRolesFile reads roleIds/userIds per tier and defaults missing fields to []', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'roles-'));
-  const rolesPath = path.join(dir, 'roles.json');
-  fs.writeFileSync(rolesPath, JSON.stringify({ admin: { roleIds: ['1'] } }));
+test('loadGuildsFile reads each guild\'s roleIds/userIds per tier and defaults missing fields to []', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'guilds-'));
+  const guildsPath = path.join(dir, 'guilds.json');
+  fs.writeFileSync(guildsPath, JSON.stringify([
+    { guildId: 'G1', admin: { roleIds: ['1'] } },
+  ]));
 
-  const roles = loadRolesFile(rolesPath);
+  const guilds = loadGuildsFile(guildsPath);
 
-  assert.deepEqual(roles, {
-    admin: { roleIds: ['1'], userIds: [] },
-    operator: { roleIds: [], userIds: [] },
-  });
+  assert.deepEqual(guilds, [
+    { guildId: 'G1', admin: { roleIds: ['1'], userIds: [] }, operator: { roleIds: [], userIds: [] } },
+  ]);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('loadGuildsFile supports multiple guilds', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'guilds-'));
+  const guildsPath = path.join(dir, 'guilds.json');
+  fs.writeFileSync(guildsPath, JSON.stringify([
+    { guildId: 'G1', admin: { roleIds: ['A'] }, operator: { roleIds: ['B'] } },
+    { guildId: 'G2', admin: { userIds: ['U1'] } },
+  ]));
+
+  const guilds = loadGuildsFile(guildsPath);
+
+  assert.equal(guilds.length, 2);
+  assert.equal(guilds[0].guildId, 'G1');
+  assert.equal(guilds[1].guildId, 'G2');
+  assert.deepEqual(guilds[1].admin, { roleIds: [], userIds: ['U1'] });
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
 test('loadConfig reads secrets from env and applies defaults', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'roles-'));
-  const rolesPath = path.join(dir, 'roles.json');
-  fs.writeFileSync(rolesPath, JSON.stringify({
-    admin: { roleIds: ['A'], userIds: ['U1'] },
-    operator: { roleIds: ['B'], userIds: [] },
-  }));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'guilds-'));
+  const guildsPath = path.join(dir, 'guilds.json');
+  fs.writeFileSync(guildsPath, JSON.stringify([
+    { guildId: 'G1', admin: { roleIds: ['A'] }, operator: { roleIds: ['B'] } },
+  ]));
 
   const config = loadConfig({
     DISCORD_TOKEN: 'tok',
     DISCORD_CLIENT_ID: 'cid',
-    DISCORD_GUILD_ID: 'gid',
     PALWORLD_ADMIN_PASSWORD: 'pw',
-    ROLES_CONFIG_PATH: rolesPath,
+    GUILDS_CONFIG_PATH: guildsPath,
   });
 
   assert.equal(config.discordToken, 'tok');
   assert.equal(config.restApiUrl, 'http://localhost:8212');
   assert.equal(config.systemdUnit, 'palworld.service');
-  assert.deepEqual(config.roles, {
-    admin: { roleIds: ['A'], userIds: ['U1'] },
-    operator: { roleIds: ['B'], userIds: [] },
-  });
+  assert.equal(config.guilds.length, 1);
+  assert.equal(config.guilds[0].guildId, 'G1');
   fs.rmSync(dir, { recursive: true, force: true });
 });

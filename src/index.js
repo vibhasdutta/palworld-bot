@@ -1,6 +1,6 @@
 const { Client, GatewayIntentBits, Events } = require('discord.js');
 const { loadConfig } = require('./config');
-const { resolveTier, hasAccess } = require('./permissions');
+const { resolveTier, hasAccess, findGuildRoles } = require('./permissions');
 const { createPalworldClient } = require('./palworldClient');
 const { controlService } = require('./processControl');
 const { appendAuditEntry } = require('./auditLog');
@@ -38,7 +38,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
     roleIds: interaction.member?.roles?.cache ? [...interaction.member.roles.cache.keys()] : [],
     userId: interaction.user.id,
   };
-  const tier = resolveTier(member, config.roles);
+  const guildRoles = findGuildRoles(config.guilds, interaction.guildId);
+  const tier = resolveTier(member, guildRoles);
 
   if (!hasAccess(tier, command.tier)) {
     await interaction.reply({ content: 'You do not have permission to use this command.', ephemeral: true });

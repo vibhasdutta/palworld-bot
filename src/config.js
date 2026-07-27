@@ -8,26 +8,27 @@ function normalizeTier(tier) {
   };
 }
 
-function loadRolesFile(rolesPath) {
-  const parsed = JSON.parse(fs.readFileSync(rolesPath, 'utf8'));
-  return {
-    admin: normalizeTier(parsed.admin),
-    operator: normalizeTier(parsed.operator),
-  };
+function loadGuildsFile(guildsPath) {
+  const parsed = JSON.parse(fs.readFileSync(guildsPath, 'utf8'));
+  const guilds = Array.isArray(parsed) ? parsed : [];
+  return guilds.map((guild) => ({
+    guildId: guild.guildId,
+    admin: normalizeTier(guild.admin),
+    operator: normalizeTier(guild.operator),
+  }));
 }
 
 function loadConfig(env = process.env) {
-  const rolesPath = env.ROLES_CONFIG_PATH || path.join(__dirname, '..', 'config', 'roles.json');
+  const guildsPath = env.GUILDS_CONFIG_PATH || path.join(__dirname, '..', 'config', 'guilds.json');
   return {
     discordToken: env.DISCORD_TOKEN,
     clientId: env.DISCORD_CLIENT_ID,
-    guildId: env.DISCORD_GUILD_ID,
     restApiUrl: env.PALWORLD_REST_URL || 'http://localhost:8212',
     restApiPassword: env.PALWORLD_ADMIN_PASSWORD,
     systemdUnit: env.PALWORLD_SYSTEMD_UNIT || 'palworld.service',
     auditLogPath: env.AUDIT_LOG_PATH || path.join(__dirname, '..', 'data', 'audit-log.json'),
-    roles: loadRolesFile(rolesPath),
+    guilds: loadGuildsFile(guildsPath),
   };
 }
 
-module.exports = { loadConfig, loadRolesFile };
+module.exports = { loadConfig, loadGuildsFile };
