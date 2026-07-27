@@ -39,11 +39,30 @@ function loadChannelsFile(channelsPath) {
   }));
 }
 
-// Registers a newly-seen guild across all three config files with empty/no-op
-// defaults (no roles granted, no channels to post to) so the human only ever
-// has to *edit* values, never create the entries by hand. Returns true the
-// first time a guild is seen, false on every call after.
-function ensureGuildEntry(guildsPath, rolesPath, channelsPath, guildId) {
+// Each guild's Palworld connection. A guild with no restApiUrl/pm2ProcessName
+// configured is structurally incapable of controlling any server, regardless
+// of what roles.json grants -- this is the multi-tenancy boundary, not just
+// an allowlist bolted on top.
+function loadServersFile(serversPath) {
+  return readJsonArray(serversPath).map((entry) => ({
+    guildId: entry.guildId,
+    restApiUrl: entry.restApiUrl || null,
+    restApiPassword: entry.restApiPassword || null,
+    pm2ProcessName: entry.pm2ProcessName || null,
+  }));
+}
+
+function findGuildServer(servers, guildId) {
+  const entry = servers.find((s) => s.guildId === guildId);
+  if (!entry || !entry.restApiUrl || !entry.pm2ProcessName) return null;
+  return entry;
+}
+
+// Registers a newly-seen guild across all four config files with empty/no-op
+// defaults (no roles granted, no channels to post to, no server to control)
+// so the human only ever has to *edit* values, never create the entries by
+// hand. Returns true the first time a guild is seen, false on every call after.
+function ensureGuildEntry(guildsPath, rolesPath, channelsPath, serversPath, guildId) {
   const guilds = readJsonArray(guildsPath);
   if (guilds.some((g) => g.guildId === guildId)) return false;
 
@@ -57,6 +76,12 @@ function ensureGuildEntry(guildsPath, rolesPath, channelsPath, guildId) {
 
   const channels = readJsonArray(channelsPath);
   writeJsonArray(channelsPath, [...channels, { guildId, botChannelId: '', serverChannelId: '' }]);
+
+  const servers = readJsonArray(serversPath);
+  writeJsonArray(serversPath, [
+    ...servers,
+    { guildId, restApiUrl: '', restApiPassword: '', pm2ProcessName: '' },
+  ]);
 
   return true;
 }
@@ -83,20 +108,20 @@ function loadConfig(env = process.env) {
   const guildsPath = env.GUILDS_CONFIG_PATH || path.join(configDir, 'guilds.json');
   const rolesPath = env.ROLES_CONFIG_PATH || path.join(configDir, 'roles.json');
   const channelsPath = env.CHANNELS_CONFIG_PATH || path.join(configDir, 'channels.json');
+  const serversPath = env.SERVERS_CONFIG_PATH || path.join(configDir, 'servers.json');
 
   return {
     discordToken: env.DISCORD_TOKEN,
     clientId: env.DISCORD_CLIENT_ID,
-    restApiUrl: env.PALWORLD_REST_URL || 'http://localhost:8212',
-    restApiPassword: env.PALWORLD_ADMIN_PASSWORD,
-    pm2ProcessName: env.PALWORLD_PM2_NAME || 'palworld',
     auditLogPath: env.AUDIT_LOG_PATH || path.join(__dirname, '..', 'data', 'audit-log.json'),
     guildsPath,
     rolesPath,
     channelsPath,
+    serversPath,
     guilds: loadGuildsFile(guildsPath),
     roles: loadRolesFile(rolesPath),
     channels: loadChannelsFile(channelsPath),
+    servers: loadServersFile(serversPath),
   };
 }
 
@@ -105,6 +130,8 @@ module.exports = {
   loadGuildsFile,
   loadRolesFile,
   loadChannelsFile,
+  loadServersFile,
+  findGuildServer,
   ensureGuildEntry,
   mutateGuildRoles,
 };

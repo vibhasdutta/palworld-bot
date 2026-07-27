@@ -7,6 +7,8 @@ const {
   loadGuildsFile,
   loadRolesFile,
   loadChannelsFile,
+  loadServersFile,
+  findGuildServer,
   ensureGuildEntry,
   mutateGuildRoles,
   loadConfig,
@@ -51,13 +53,39 @@ test('loadChannelsFile defaults missing channel IDs to null', () => {
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-test('ensureGuildEntry registers a new guild across all three files with empty defaults', () => {
+test('loadServersFile defaults missing fields to null', () => {
+  const dir = tmpConfigDir();
+  const serversPath = path.join(dir, 'servers.json');
+  fs.writeFileSync(serversPath, JSON.stringify([{ guildId: 'G1', restApiUrl: 'http://localhost:8212' }]));
+
+  assert.deepEqual(loadServersFile(serversPath), [
+    { guildId: 'G1', restApiUrl: 'http://localhost:8212', restApiPassword: null, pm2ProcessName: null },
+  ]);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('findGuildServer returns null for an unregistered guild', () => {
+  assert.equal(findGuildServer([], 'G1'), null);
+});
+
+test('findGuildServer returns null for a guild whose server isn\'t configured yet (empty stub)', () => {
+  const servers = [{ guildId: 'G1', restApiUrl: null, restApiPassword: null, pm2ProcessName: null }];
+  assert.equal(findGuildServer(servers, 'G1'), null);
+});
+
+test('findGuildServer returns the entry once restApiUrl and pm2ProcessName are both set', () => {
+  const servers = [{ guildId: 'G1', restApiUrl: 'http://localhost:8212', restApiPassword: 'pw', pm2ProcessName: 'palworld' }];
+  assert.deepEqual(findGuildServer(servers, 'G1'), servers[0]);
+});
+
+test('ensureGuildEntry registers a new guild across all four files with empty defaults', () => {
   const dir = tmpConfigDir();
   const guildsPath = path.join(dir, 'guilds.json');
   const rolesPath = path.join(dir, 'roles.json');
   const channelsPath = path.join(dir, 'channels.json');
+  const serversPath = path.join(dir, 'servers.json');
 
-  const added = ensureGuildEntry(guildsPath, rolesPath, channelsPath, 'G1');
+  const added = ensureGuildEntry(guildsPath, rolesPath, channelsPath, serversPath, 'G1');
 
   assert.equal(added, true);
   assert.deepEqual(loadGuildsFile(guildsPath), [{ guildId: 'G1' }]);
@@ -65,6 +93,7 @@ test('ensureGuildEntry registers a new guild across all three files with empty d
     { guildId: 'G1', admin: { roleIds: [], userIds: [] }, operator: { roleIds: [], userIds: [] } },
   ]);
   assert.deepEqual(loadChannelsFile(channelsPath), [{ guildId: 'G1', botChannelId: null, serverChannelId: null }]);
+  assert.deepEqual(loadServersFile(serversPath), [{ guildId: 'G1', restApiUrl: null, restApiPassword: null, pm2ProcessName: null }]);
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
@@ -73,9 +102,10 @@ test('ensureGuildEntry is a no-op for an already-registered guild', () => {
   const guildsPath = path.join(dir, 'guilds.json');
   const rolesPath = path.join(dir, 'roles.json');
   const channelsPath = path.join(dir, 'channels.json');
+  const serversPath = path.join(dir, 'servers.json');
 
-  ensureGuildEntry(guildsPath, rolesPath, channelsPath, 'G1');
-  const addedAgain = ensureGuildEntry(guildsPath, rolesPath, channelsPath, 'G1');
+  ensureGuildEntry(guildsPath, rolesPath, channelsPath, serversPath, 'G1');
+  const addedAgain = ensureGuildEntry(guildsPath, rolesPath, channelsPath, serversPath, 'G1');
 
   assert.equal(addedAgain, false);
   assert.equal(loadGuildsFile(guildsPath).length, 1);
@@ -109,18 +139,16 @@ test('mutateGuildRoles creates the guild entry if it does not exist yet', () => 
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-test('loadConfig reads secrets from env and wires up all three config paths', () => {
+test('loadConfig reads secrets from env and wires up all four config paths', () => {
   const config = loadConfig({
     DISCORD_TOKEN: 'tok',
     DISCORD_CLIENT_ID: 'cid',
-    PALWORLD_ADMIN_PASSWORD: 'pw',
     CONFIG_DIR: tmpConfigDir(),
   });
 
   assert.equal(config.discordToken, 'tok');
-  assert.equal(config.restApiUrl, 'http://localhost:8212');
-  assert.equal(config.pm2ProcessName, 'palworld');
   assert.deepEqual(config.guilds, []);
   assert.deepEqual(config.roles, []);
   assert.deepEqual(config.channels, []);
+  assert.deepEqual(config.servers, []);
 });

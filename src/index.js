@@ -1,7 +1,15 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { Client, GatewayIntentBits, Events, REST, Routes, Options } = require('discord.js');
-const { loadConfig, ensureGuildEntry, loadGuildsFile, loadRolesFile, loadChannelsFile } = require('./config');
+const {
+  loadConfig,
+  ensureGuildEntry,
+  loadGuildsFile,
+  loadRolesFile,
+  loadChannelsFile,
+  loadServersFile,
+  findGuildServer,
+} = require('./config');
 const { resolveTier, hasAccess, findGuildRoles } = require('./permissions');
 const { createPalworldClient } = require('./palworldClient');
 const { controlService } = require('./processControl');
@@ -14,8 +22,6 @@ const config = loadConfig();
 const commands = loadCommands();
 const commandData = [...commands.values()].map((c) => c.data.toJSON());
 const rest = new REST().setToken(config.discordToken);
-
-const palworld = createPalworldClient({ baseUrl: config.restApiUrl, password: config.restApiPassword });
 
 // ponytail: this bot only handles slash commands, never reads messages/presences/
 // reactions/voice state — zeroing those caches keeps memory flat instead of growing
@@ -39,28 +45,40 @@ const client = new Client({
 
 const notify = createNotifier(client, () => config.channels);
 
-const ctx = {
-  config,
-  palworld,
-  processControl: {
-    controlService: (action) => controlService(config.pm2ProcessName, action),
-  },
-  auditLog: {
-    appendAuditEntry: (entry) => {
-      const saved = appendAuditEntry(config.auditLogPath, entry);
-      if (entry.guildId) notify.serverLog(entry.guildId, formatAuditEntry(entry)).catch(() => {});
-      return saved;
-    },
+const auditLog = {
+  appendAuditEntry: (entry) => {
+    const saved = appendAuditEntry(config.auditLogPath, entry);
+    if (entry.guildId) notify.serverLog(entry.guildId, formatAuditEntry(entry)).catch(() => {});
+    return saved;
   },
 };
 
+// Each guild is its own tenant: no shared Palworld connection. A guild with
+// no server configured (empty restApiUrl/pm2ProcessName in config/servers.json)
+// gets `null` here and cannot run anything server-related, regardless of what
+// roles.json grants -- this is what stops an unrelated guild that invites the
+// bot from ever touching a server that isn't theirs.
+function buildGuildCtx(guildId) {
+  const server = findGuildServer(config.servers, guildId);
+  if (!server) return null;
+  return {
+    config,
+    palworld: createPalworldClient({ baseUrl: server.restApiUrl, password: server.restApiPassword }),
+    processControl: {
+      controlService: (action) => controlService(server.pm2ProcessName, action),
+    },
+    auditLog,
+  };
+}
+
 async function onboardGuild(guildId, guildName) {
-  const added = ensureGuildEntry(config.guildsPath, config.rolesPath, config.channelsPath, guildId);
+  const added = ensureGuildEntry(config.guildsPath, config.rolesPath, config.channelsPath, config.serversPath, guildId);
   if (added) {
     config.guilds = loadGuildsFile(config.guildsPath);
     config.roles = loadRolesFile(config.rolesPath);
     config.channels = loadChannelsFile(config.channelsPath);
-    console.log(`Joined "${guildName}" (${guildId}) — added stub entries to config/roles.json (no access granted yet) and config/channels.json (no channels set). Edit them to give people access / enable logging.`);
+    config.servers = loadServersFile(config.serversPath);
+    console.log(`Joined "${guildName}" (${guildId}) — added stub entries to config/roles.json, config/channels.json, and config/servers.json. This guild cannot control any Palworld server until config/servers.json is filled in for it.`);
   }
 
   try {
@@ -75,13 +93,14 @@ async function onboardGuild(guildId, guildName) {
 // replace the file on save (write temp + rename), which breaks a watch held on
 // the original inode. Debounced since a single save can fire multiple events.
 function watchConfigFiles() {
-  const dir = path.dirname(config.guildsPath); // guilds/roles/channels all live in config/
+  const dir = path.dirname(config.guildsPath); // guilds/roles/channels/servers all live in config/
   fs.mkdirSync(dir, { recursive: true });
 
   const reloaders = {
     [path.basename(config.guildsPath)]: () => { config.guilds = loadGuildsFile(config.guildsPath); },
     [path.basename(config.rolesPath)]: () => { config.roles = loadRolesFile(config.rolesPath); },
     [path.basename(config.channelsPath)]: () => { config.channels = loadChannelsFile(config.channelsPath); },
+    [path.basename(config.serversPath)]: () => { config.servers = loadServersFile(config.serversPath); },
   };
 
   const debounceTimers = {};
@@ -132,8 +151,14 @@ client.on(Events.InteractionCreate, async (interaction) => {
     return;
   }
 
+  const guildCtx = buildGuildCtx(interaction.guildId);
+  if (!guildCtx) {
+    await interaction.reply({ embeds: [errorEmbed('No Palworld server is configured for this Discord server yet. Ask the bot owner to fill in config/servers.json.')], ephemeral: true });
+    return;
+  }
+
   try {
-    await command.execute(interaction, ctx);
+    await command.execute(interaction, guildCtx);
   } catch (err) {
     console.error(`Error executing /${interaction.commandName}:`, err);
     const payload = { embeds: [errorEmbed(`Something went wrong: ${err.message}`)], ephemeral: true };

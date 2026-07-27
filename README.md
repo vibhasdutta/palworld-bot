@@ -5,7 +5,7 @@ Live deployment: `20.207.201.17`, user `morfit`.
 ## Layout on the VM
 
 - `/home/morfit/palworld/` — the Palworld dedicated server (SteamCMD install, `PalServer.sh`, `PalWorldSettings.ini` under `Pal/Saved/Config/LinuxServer/`)
-- `/home/morfit/palworld-bot/` — this bot's code, `.env` (secrets), `config/{guilds,roles,channels}.json` (per-guild registry/permissions/channel routing)
+- `/home/morfit/palworld-bot/` — this bot's code, `.env` (Discord secrets only), `config/{guilds,roles,channels,servers}.json` (per-guild registry/permissions/channel routing/server connection)
 
 Both processes run under **PM2** as the `morfit` user — no systemd units, no sudo needed for day-to-day control.
 
@@ -30,11 +30,17 @@ pm2 save
 
 Boot persistence is already installed (`systemctl status pm2-morfit` — a systemd unit that runs `pm2 resurrect` on boot). You should not need to touch it again.
 
+## Multi-tenancy: one bot, many guilds, separate servers
+
+This bot can be invited to any number of Discord guilds — including ones you don't control (people find/reuse the OAuth invite link). **Every guild is its own tenant with no shared state beyond the bot process itself.** A guild only gets a working Palworld connection if `config/servers.json` explicitly configures one *for that guild's ID* — the REST API URL, password, and PM2 process name all live there, keyed by `guildId`, not in a single global `.env`. A guild with no server entry (or an incomplete one) gets a hard "no server configured" error on every command — **it structurally cannot control any server**, no matter what roles it grants itself via `/operator`. This is what stops a guild you didn't intend to grant access — like someone who found the invite link — from ever touching your actual Palworld server.
+
+If you ever do want to host a second Palworld instance for a different Discord community, that's what this is designed for: give that guild its own `servers.json` entry pointing at a different REST API port / PM2 app name, and the two communities are fully isolated from each other.
+
 ## Config files
 
-All three below live in `config/`, are gitignored (VM/local only), and are **auto-registered** the moment the bot joins a guild (or on its own startup for guilds it's already in) — you never need to look up a guild ID by hand, and all three files are joined by that same `guildId`. All three **hot-reload within ~1 second of saving** — no restart needed after editing any of them.
+All four below live in `config/`, are gitignored (VM/local only), and are **auto-registered** the moment the bot joins a guild (or on its own startup for guilds it's already in) — you never need to look up a guild ID by hand, and all four files are joined by that same `guildId`. All four **hot-reload within ~1 second of saving** — no restart needed after editing any of them.
 
-- **`.env`** — Discord bot token, client ID, Palworld REST API URL/password, PM2 process name. This one is *not* hot-reloaded — restart the bot (`pm2 restart palworld-bot`) after editing it.
+- **`.env`** — just the Discord bot token and client ID. This one is *not* hot-reloaded — restart the bot (`pm2 restart palworld-bot`) after editing it.
 - **`config/guilds.json`** — just the registry of known guilds: `[{ "guildId": "..." }]`. Mostly for your own visibility; not something you need to edit.
 - **`config/roles.json`** — who has access, per guild:
   ```json
@@ -45,7 +51,12 @@ All three below live in `config/`, are gitignored (VM/local only), and are **aut
   ```json
   { "guildId": "...", "botChannelId": "...", "serverChannelId": "..." }
   ```
-  `botChannelId` gets the bot's own operational log (permission denials, command errors). `serverChannelId` gets a live feed of every successful admin/moderation action (kick/ban/unban/announce/save/start/stop/restart), mirroring `data/audit-log.json`. **Leave either blank (`""`) to disable that stream** — the bot silently skips posting instead of erroring. New guild entries start with both blank.
+  `botChannelId` gets the bot's own operational log (permission denials, command errors). `serverChannelId` gets a live feed of every successful admin/moderation action (kick/ban/unban/announce/save/start/stop/restart/operator grants), mirroring `data/audit-log.json`. **Leave either blank (`""`) to disable that stream** — the bot silently skips posting instead of erroring. New guild entries start with both blank.
+- **`config/servers.json`** — which Palworld server this guild controls, if any:
+  ```json
+  { "guildId": "...", "restApiUrl": "http://localhost:8212", "restApiPassword": "...", "pm2ProcessName": "palworld" }
+  ```
+  New entries start with all three blank — see the multi-tenancy section above for why that matters. Fill all three in to activate a guild.
 
 ## Commands the bot exposes
 
@@ -61,9 +72,9 @@ All three below live in `config/`, are gitignored (VM/local only), and are **aut
 ## Palworld REST API
 
 - Enabled in `PalWorldSettings.ini`: `RESTAPIEnabled=True`, `RESTAPIPort=8212`
-- Auth: HTTP Basic, username `admin`, password = `PALWORLD_ADMIN_PASSWORD` in `.env`
+- Auth: HTTP Basic, username `admin`, password = that guild's `restApiPassword` in `config/servers.json`
 - Bound to localhost only — never expose port 8212 to the internet (Azure NSG should not have an inbound rule for it)
-- Manual smoke test: `cd /home/morfit/palworld-bot && node --env-file=.env scripts/check-rest-api.js`
+- Manual smoke test (pick which guild's server to test): `cd /home/morfit/palworld-bot && node --env-file=.env scripts/check-rest-api.js <guildId>`
 - **Gotcha (already handled in `/stop`'s code, documented here so it isn't reintroduced):** the REST API's `shutdown`/`stop` endpoints make the PalServer *process itself* exit. Since `palworld`'s PM2 entry has `autorestart: true`, PM2 can't tell that apart from a crash and will bring it right back up on its own within seconds. `/stop` waits out the shutdown, then explicitly calls `pm2 stop palworld` so PM2 knows it was intentional and stays down. If you ever call the REST shutdown endpoint directly (bypassing the bot), follow it with a manual `pm2 stop palworld` too.
 
 ## Deploying code changes
@@ -89,4 +100,4 @@ npm run deploy-commands
 
 ## First-time access setup (still needed)
 
-The bot is online and has auto-registered itself in every guild it's been invited to, but new guilds start with **no admin/operator access and no channels configured**. Edit `config/roles.json` on the VM to add your Discord user ID (or a role ID) to the `admin` tier, and `config/channels.json` if you want the bot/server log channels — both hot-reload automatically, no restart needed.
+The bot is online and has auto-registered itself in every guild it's been invited to, but new guilds start with **no admin/operator access, no channels configured, and no server to control**. For a guild you actually want active: edit `config/roles.json` to add your Discord user ID (or a role ID) to the `admin` tier, `config/channels.json` if you want the bot/server log channels, and `config/servers.json` with that guild's Palworld connection details — all hot-reload automatically, no restart needed. Guilds you don't recognize can be safely left alone; they're inert by default.
