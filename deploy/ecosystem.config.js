@@ -12,6 +12,7 @@ module.exports = {
       name: 'palworld-bot',
       script: '/home/morfit/palworld-bot/src/index.js',
       cwd: '/home/morfit/palworld-bot',
+      node_args: '--env-file=.env',
       autorestart: true,
     },
   ],
