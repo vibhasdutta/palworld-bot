@@ -4,7 +4,7 @@
 
 | What | Value |
 |---|---|
-| VM | `20.207.201.17`, SSH user `$USER` |
+| VM | `<vm-ip>`, SSH user `$USER` |
 | Bot code + config | `/home/$USER/palworld-bot/` |
 | Bot secrets | `/home/$USER/palworld-bot/.env` |
 | Bot config (4 files) | `/home/$USER/palworld-bot/config/guilds.json`, `roles.json`, `channels.json`, `servers.json` |
@@ -12,11 +12,11 @@
 | Palworld server settings | `/home/$USER/palworld/Pal/Saved/Config/LinuxServer/PalWorldSettings.ini` |
 | Process manager | PM2, running as user `$USER` (no systemd, no sudo for daily use) |
 | PM2 app names | `palworld` (game server), `palworld-bot` (this bot) |
-| Currently-active guild | `884405985232441355` ("METESTING") — the only guild with a real server wired up |
+| Currently-active guild | `<guild-id>` ("your-guild-name") — the only guild with a real server wired up |
 | Game port | `8211` (UDP) |
 | REST API port | `8212` (localhost only — never expose to the internet) |
 
-Everything below assumes you're SSH'd in as `$USER@20.207.201.17`.
+Everything below assumes you're SSH'd in as `$USER@<vm-ip>`.
 
 ---
 
@@ -30,26 +30,26 @@ The bot auto-joins every guild it's invited to and creates empty entries for it,
    ```bash
    cat /home/$USER/palworld-bot/config/guilds.json
    ```
-   If your guild ID isn't listed, the bot hasn't seen it yet — invite it first (invite link uses client ID `1531311672860479488`), it registers itself within seconds of joining.
+   If your guild ID isn't listed, the bot hasn't seen it yet — invite it first (invite link uses client ID `<bot-client-id>`), it registers itself within seconds of joining.
 
 3. **Grant yourself admin access.** Edit `/home/$USER/palworld-bot/config/roles.json`, find the object with your `guildId`, and add your Discord user ID (right-click your name → Copy User ID) or a role ID to `admin.userIds` / `admin.roleIds`:
    ```bash
    nano /home/$USER/palworld-bot/config/roles.json
    ```
-   Example for guild `884405985232441355`:
+   Example for guild `<guild-id>`:
    ```json
    {
-     "guildId": "884405985232441355",
-     "admin": { "roleIds": ["916249552460324914"], "userIds": [] },
-     "operator": { "roleIds": ["972899500333072454"], "userIds": ["830330498072969266"] }
+     "guildId": "<guild-id>",
+     "admin": { "roleIds": ["<admin-role-id>"], "userIds": [] },
+     "operator": { "roleIds": ["<operator-role-id>"], "userIds": ["<operator-user-id>"] }
    }
    ```
    Saves apply automatically within ~1 second — no restart needed.
 
-4. **Point it at a Palworld server.** Edit `/home/$USER/palworld-bot/config/servers.json` for the same `guildId`. If this guild should control the one existing server on this VM, use the real values already active for `884405985232441355`:
+4. **Point it at a Palworld server.** Edit `/home/$USER/palworld-bot/config/servers.json` for the same `guildId`. If this guild should control the one existing server on this VM, use the real values already active for `<guild-id>`:
    ```json
    {
-     "guildId": "884405985232441355",
+     "guildId": "<guild-id>",
      "restApiUrl": "http://localhost:8212",
      "restApiPassword": "<the real AdminPassword from PalWorldSettings.ini>",
      "pm2ProcessName": "palworld"
@@ -147,7 +147,7 @@ No CI/CD — updates are manual. **Only overwrite tracked source files, never `r
 
 ```bash
 # from your machine: copy changed files to the VM (pscp/scp), e.g.:
-#   pscp path/to/file $USER@20.207.201.17:/home/$USER/palworld-bot/path/to/file
+#   pscp path/to/file $USER@<vm-ip>:/home/$USER/palworld-bot/path/to/file
 # then on the VM:
 cd /home/$USER/palworld-bot
 npm install              # only if package.json changed
