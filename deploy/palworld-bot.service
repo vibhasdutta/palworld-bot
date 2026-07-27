@@ -1,0 +1,15 @@
+[Unit]
+Description=Palworld Discord Admin Bot
+After=network-online.target palworld.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=palworld-bot
+WorkingDirectory=/opt/palworld-bot
+ExecStart=/usr/bin/node --env-file=/opt/palworld-bot/.env /opt/palworld-bot/src/index.js
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

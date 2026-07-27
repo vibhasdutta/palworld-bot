@@ -1,3 +1,5 @@
 node_modules/
 .env
 scrape/
+data/
+config/roles.json
