@@ -36,10 +36,14 @@ function createPlayerPoller({ getServers, createClient, notify, intervalMs = 200
 
       if (!isFirstPoll) {
         for (const [id, name] of current) {
-          if (!previous.has(id)) notify.serverLog(server.guildId, `🟢 **${name}** joined ${server.label}.`).catch(() => {});
+          if (!previous.has(id)) {
+            notify.serverLog(server.guildId, { title: 'Player Joined', description: `🟢 **${name}** joined ${server.label}.`, level: 'success' }).catch(() => {});
+          }
         }
         for (const [id, name] of previous) {
-          if (!current.has(id)) notify.serverLog(server.guildId, `🔴 **${name}** left ${server.label}.`).catch(() => {});
+          if (!current.has(id)) {
+            notify.serverLog(server.guildId, { title: 'Player Left', description: `🔴 **${name}** left ${server.label}.`, level: 'danger' }).catch(() => {});
+          }
         }
       }
       known.set(key, current);

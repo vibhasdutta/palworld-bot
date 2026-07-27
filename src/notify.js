@@ -1,3 +1,42 @@
+const { EmbedBuilder } = require('discord.js');
+
+const LEVEL_COLORS = {
+  info: 0x3498db,
+  success: 0x2ecc71,
+  warning: 0xf39c12,
+  danger: 0xe74c3c,
+};
+
+function levelForCommand(command) {
+  switch (command) {
+    case 'kick':
+    case 'ban':
+    case 'stop':
+      return 'danger';
+    case 'start':
+      return 'success';
+    case 'restart':
+      return 'warning';
+    default:
+      return 'info';
+  }
+}
+
+function titleForCommand(command) {
+  switch (command) {
+    case 'announce': return 'Announce';
+    case 'kick': return 'Kick';
+    case 'ban': return 'Ban';
+    case 'unban': return 'Unban';
+    case 'save': return 'Save';
+    case 'start': return 'Start';
+    case 'restart': return 'Restart';
+    case 'stop': return 'Stop';
+    case 'operator': return 'Operator Access';
+    default: return 'Server Action';
+  }
+}
+
 function findGuildChannels(channels, guildId) {
   return channels.find((c) => c.guildId === guildId) || null;
 }
@@ -8,40 +47,49 @@ function actorMention(entry) {
   return entry.actorId ? `<@${entry.actorId}>` : `**${entry.actor}**`;
 }
 
+// Returns a {title, description, level} log entry -- postToChannel renders
+// this as a color-coded, timestamped embed instead of a plain-text message.
 function formatAuditEntry(entry) {
   const actor = actorMention(entry);
+  const base = { title: titleForCommand(entry.command), level: levelForCommand(entry.command) };
   switch (entry.command) {
     case 'announce':
-      return `${actor} announced: "${entry.message}"`;
+      return { ...base, description: `${actor} announced: "${entry.message}"` };
     case 'kick':
-      return `${actor} kicked \`${entry.target}\` — ${entry.reason}`;
+      return { ...base, description: `${actor} kicked \`${entry.target}\` — ${entry.reason}` };
     case 'ban':
-      return `${actor} banned \`${entry.target}\` — ${entry.reason}`;
+      return { ...base, description: `${actor} banned \`${entry.target}\` — ${entry.reason}` };
     case 'unban':
-      return `${actor} unbanned \`${entry.target}\``;
+      return { ...base, description: `${actor} unbanned \`${entry.target}\`` };
     case 'save':
-      return `${actor} saved the world`;
+      return { ...base, description: `${actor} saved the world` };
     case 'start':
-      return `${actor} started the server`;
+      return { ...base, description: `${actor} started the server` };
     case 'restart':
-      return `${actor} restarted the server`;
+      return { ...base, description: `${actor} restarted the server` };
     case 'stop':
-      return `${actor} stopped the server${entry.force ? ' (force)' : ''}`;
+      return { ...base, description: `${actor} stopped the server${entry.force ? ' (force)' : ''}` };
     case 'operator': {
       const verb = entry.action.startsWith('add') ? 'granted operator to' : 'revoked operator from';
       const mention = entry.targetType === 'role' ? `<@&${entry.target}>` : `<@${entry.target}>`;
-      return `${actor} ${verb} ${mention}`;
+      return { ...base, description: `${actor} ${verb} ${mention}` };
     }
     default:
-      return `${actor} ran ${entry.command}`;
+      return { ...base, description: `${actor} ran ${entry.command}` };
   }
 }
 
-async function postToChannel(client, channelId, content) {
+function buildLogEmbed({ title, description, level = 'info' }) {
+  const embed = new EmbedBuilder().setColor(LEVEL_COLORS[level] ?? LEVEL_COLORS.info).setDescription(description).setTimestamp();
+  if (title) embed.setTitle(title);
+  return embed;
+}
+
+async function postToChannel(client, channelId, entry) {
   if (!channelId) return;
   try {
     const channel = await client.channels.fetch(channelId);
-    await channel.send(content);
+    await channel.send({ embeds: [buildLogEmbed(entry)] });
   } catch (err) {
     console.error(`Failed to post to channel ${channelId}:`, err.message);
   }
@@ -49,18 +97,18 @@ async function postToChannel(client, channelId, content) {
 
 // getChannels is a function, not a static array, so this always sees the
 // latest hot-reloaded config.channels rather than a stale snapshot from
-// whenever createNotifier() was called.
+// whenever createNotifier() was called. `entry` is {title?, description, level?}.
 function createNotifier(client, getChannels) {
   return {
-    botLog(guildId, content) {
+    botLog(guildId, entry) {
       const channels = findGuildChannels(getChannels(), guildId);
-      return postToChannel(client, channels?.botChannelId, content);
+      return postToChannel(client, channels?.botChannelId, entry);
     },
-    serverLog(guildId, content) {
+    serverLog(guildId, entry) {
       const channels = findGuildChannels(getChannels(), guildId);
-      return postToChannel(client, channels?.serverChannelId, content);
+      return postToChannel(client, channels?.serverChannelId, entry);
     },
   };
 }
 
-module.exports = { createNotifier, findGuildChannels, formatAuditEntry };
+module.exports = { createNotifier, findGuildChannels, formatAuditEntry, buildLogEmbed };

@@ -50,6 +50,12 @@ function normalizeServer(server) {
     restApiUrl: server.restApiUrl || null,
     restApiPassword: server.restApiPassword || null,
     pm2ProcessName: server.pm2ProcessName || null,
+    // Optional: absolute path to this server's Level.sav on disk. Palworld's
+    // REST API has no "was just saved" signal, so detecting an autosave or
+    // in-game save (as opposed to one triggered through /save) means
+    // watching the save file's mtime instead -- only possible if we know
+    // where it is. Leave unset to skip that detection for this server.
+    saveFilePath: server.saveFilePath || null,
   };
 }
 

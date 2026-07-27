@@ -46,7 +46,9 @@ test('a new player on the second poll is reported as joined', async () => {
   players = [{ userId: 'u1', name: 'Alice' }, { userId: 'u2', name: 'Bob' }];
   await poller.pollOnce();
 
-  assert.deepEqual(notify.messages, [{ guildId: 'G1', content: '🟢 **Bob** joined main.' }]);
+  assert.deepEqual(notify.messages, [
+    { guildId: 'G1', content: { title: 'Player Joined', description: '🟢 **Bob** joined main.', level: 'success' } },
+  ]);
 });
 
 test('a player missing on the second poll is reported as left', async () => {
@@ -62,7 +64,9 @@ test('a player missing on the second poll is reported as left', async () => {
   players = [{ userId: 'u1', name: 'Alice' }];
   await poller.pollOnce();
 
-  assert.deepEqual(notify.messages, [{ guildId: 'G1', content: '🔴 **Bob** left main.' }]);
+  assert.deepEqual(notify.messages, [
+    { guildId: 'G1', content: { title: 'Player Left', description: '🔴 **Bob** left main.', level: 'danger' } },
+  ]);
 });
 
 test('a REST failure is skipped without wiping known state (no false mass-leave)', async () => {

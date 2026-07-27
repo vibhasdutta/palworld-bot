@@ -23,6 +23,7 @@ const { autocompletePlayers } = require('./playerOption');
 const { createExpectedActions } = require('./expectedActions');
 const { watchPm2 } = require('./pm2Watcher');
 const { createPlayerPoller } = require('./playerPoller');
+const { createSaveFileWatcher } = require('./saveFileWatcher');
 const loadCommands = require('./commands');
 
 const BOT_PM2_NAME = 'palworld-bot';
@@ -73,10 +74,21 @@ const baseCtx = { config, auditLog };
 function resolveServerCtx(guildId, label) {
   const server = findGuildServer(config.servers, guildId, label);
   if (server) {
+    const rawPalworld = createPalworldClient({ baseUrl: server.restApiUrl, password: server.restApiPassword });
     return {
       ctx: {
         ...baseCtx,
-        palworld: createPalworldClient({ baseUrl: server.restApiUrl, password: server.restApiPassword }),
+        palworld: {
+          ...rawPalworld,
+          // Marking this expected before the call means saveFileWatcher.js
+          // (which watches the save file's mtime for autosaves/in-game
+          // saves) doesn't also report a save the bot itself just triggered,
+          // whether directly via /save or as restart.js's pre-restart save.
+          save: () => {
+            expectedActions.expect(`save:${guildId}:${server.label}`);
+            return rawPalworld.save();
+          },
+        },
         processControl: {
           controlService: (action) => {
             expectedActions.expect(server.pm2ProcessName);
@@ -176,13 +188,21 @@ watchPm2({
     const verb = eventType === 'restart' ? 'started or restarted' : 'stopped';
 
     if (processName === BOT_PM2_NAME) {
-      const message = `:warning: **Bot process** (\`${processName}\`) was ${verb} directly via \`pm2\` (not through Discord) — check who has VM access.`;
+      const message = {
+        title: 'External Bot Action',
+        description: `**Bot process** (\`${processName}\`) was ${verb} directly via \`pm2\` (not through Discord) — check who has VM access.`,
+        level: 'warning',
+      };
       for (const entry of config.channels) notify.botLog(entry.guildId, message).catch(() => {});
       return;
     }
 
     for (const { guildId, label } of findOwningGuildServers(processName)) {
-      const message = `:warning: **${label}** (pm2 process \`${processName}\`) was ${verb} directly via \`pm2\` (not through the bot) — check who has VM access.`;
+      const message = {
+        title: 'External Server Action',
+        description: `**${label}** (pm2 process \`${processName}\`) was ${verb} directly via \`pm2\` (not through the bot) — check who has VM access.`,
+        level: 'warning',
+      };
       notify.serverLog(guildId, message).catch(() => {});
     }
   },
@@ -197,12 +217,23 @@ const playerPoller = createPlayerPoller({
   notify,
 });
 
+// Detects a world save that happened outside the bot (autosave, in-game
+// console) by watching the save file's mtime -- see saveFileWatcher.js.
+// Read-only fs.stat, never touches the file.
+const saveFileWatcher = createSaveFileWatcher({
+  getServers: () => allCompleteServers(config.servers),
+  statSync: fs.statSync,
+  expectedActions,
+  notify,
+});
+
 client.once(Events.ClientReady, async (readyClient) => {
   console.log(`Logged in as ${readyClient.user.tag}`);
   for (const guild of readyClient.guilds.cache.values()) {
     await onboardGuild(guild.id, guild.name);
   }
   playerPoller.start();
+  saveFileWatcher.start();
 });
 
 client.on(Events.GuildCreate, (guild) => {
@@ -234,7 +265,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
   if (!hasAccess(tier, command.tier)) {
     await interaction.reply({ embeds: [errorEmbed('You do not have permission to use this command.')], ephemeral: true });
-    notify.botLog(interaction.guildId, `<@${interaction.user.id}> was denied \`/${interaction.commandName}\` (no ${command.tier} access).`).catch(() => {});
+    notify.botLog(interaction.guildId, {
+      title: 'Access Denied',
+      description: `<@${interaction.user.id}> was denied \`/${interaction.commandName}\` (no ${command.tier} access).`,
+      level: 'warning',
+    }).catch(() => {});
     return;
   }
 
@@ -259,7 +294,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
     } else {
       await interaction.reply(payload);
     }
-    notify.botLog(interaction.guildId, `**Error** running \`/${interaction.commandName}\` for <@${interaction.user.id}>: ${err.message}`).catch(() => {});
+    notify.botLog(interaction.guildId, {
+      title: 'Command Error',
+      description: `Running \`/${interaction.commandName}\` for <@${interaction.user.id}>: ${err.message}`,
+      level: 'danger',
+    }).catch(() => {});
   }
 });
 

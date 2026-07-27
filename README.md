@@ -112,8 +112,8 @@ All four files live in `/home/$USER/palworld-bot/config/`, are gitignored (VM-on
 
 - **`guilds.json`** — registry of known guilds: `[{ "guildId": "..." }]`. Informational, not something you edit.
 - **`roles.json`** — who has access, per guild: `{ "guildId": "...", "admin": { "roleIds": [...], "userIds": [...] }, "operator": { "roleIds": [...], "userIds": [...] } }`. Empty arrays = nobody has that tier. A role ID and a user ID work independently.
-- **`channels.json`** — where the bot posts, per guild: `{ "guildId": "...", "botChannelId": "...", "serverChannelId": "..." }`. `botChannelId` gets bot errors/permission-denials; `serverChannelId` gets a live feed of every successful admin action (mirrors `/home/$USER/palworld-bot/data/audit-log.json`) plus player join/leave and external `pm2` action alerts. Blank (`""`) = that stream is off. Whoever performed an action is a real `@mention`, not just plain text.
-- **`servers.json`** — which Palworld server(s) the guild controls, if any: `{ "guildId": "...", "servers": [{ "label": "...", "restApiUrl": "...", "restApiPassword": "...", "pm2ProcessName": "..." }] }`. Empty `servers` array = guild is inert (see Multi-tenancy above). One entry = commands don't need to specify it; more than one = commands need the `server` option to say which.
+- **`channels.json`** — where the bot posts, per guild: `{ "guildId": "...", "botChannelId": "...", "serverChannelId": "..." }`. `botChannelId` gets bot errors/permission-denials; `serverChannelId` gets a live feed of every successful admin action (mirrors `/home/$USER/palworld-bot/data/audit-log.json`) plus player join/leave, world-save, and external `pm2` action alerts. Blank (`""`) = that stream is off. Whoever performed an action is a real `@mention`, not just plain text. Everything posted to either channel is a color-coded, timestamped embed (green = success, red = danger/kick/ban/stop, orange = warning, blue = info) rather than a plain-text message — see `src/notify.js`'s `LEVEL_COLORS` if you want to change the palette.
+- **`servers.json`** — which Palworld server(s) the guild controls, if any: `{ "guildId": "...", "servers": [{ "label": "...", "restApiUrl": "...", "restApiPassword": "...", "pm2ProcessName": "...", "saveFilePath": "..." }] }`. Empty `servers` array = guild is inert (see Multi-tenancy above). One entry = commands don't need to specify it; more than one = commands need the `server` option to say which. `saveFilePath` is optional — absolute path to that server's `Level.sav` (see "World save detection" below); leave it out to skip that feature for a server.
 
 **`/home/$USER/palworld-bot/.env`** is separate from all of that — just `DISCORD_TOKEN` and `DISCORD_CLIENT_ID`. Not hot-reloaded; run `pm2 restart palworld-bot` after editing it.
 
@@ -157,6 +157,12 @@ PM2 doesn't distinguish "first start" from "restart" at the event level — even
 ## Player join/leave tracking
 
 Palworld's REST API has no push events for players connecting/disconnecting — only `GET /v1/api/players`, a snapshot. The bot polls that every 20 seconds per configured server and diffs it against the last snapshot, posting 🟢 joined / 🔴 left to that guild's `serverChannelId`. A "left" could be a normal disconnect, a kick, or a ban — the players list can't tell those apart, so it's reported as a plain "left," not guessed at. The very first poll after startup just records who's already online without announcing anything (so a restart doesn't look like a mass server-join). A server that's briefly unreachable is skipped for that cycle rather than reported as everyone leaving.
+
+---
+
+## World save detection
+
+Same problem as player tracking: the REST API has no "just saved" signal, and `/save` only *triggers* a save, it doesn't confirm one happened. Since the bot runs on the same machine as the server, it instead watches that server's `Level.sav` file's last-modified time every 15 seconds (needs `saveFilePath` set in `config/servers.json` — see above; skipped entirely for a server if it's not set). A save triggered through the bot (`/save`, or the automatic save `/restart` does before restarting) is recognized and not reported again through this path — only saves that happen some other way (Palworld's own `AutoSaveSpan` autosave, or an in-game/console save) post "💾 World saved on **{label}** (autosave or in-game, not `/save`)" to `serverChannelId`. Purely read-only (`fs.stat`) — never touches the save file itself.
 
 One caveat: if the *bot's own* process is killed externally, there's only a brief best-effort window to report that before it actually dies — it's not guaranteed for that one case.
 

@@ -62,7 +62,7 @@ test('loadServersFile parses a guild\'s server list and defaults missing fields 
   ]));
 
   assert.deepEqual(loadServersFile(serversPath), [
-    { guildId: 'G1', servers: [{ label: 'main', restApiUrl: 'http://localhost:8212', restApiPassword: null, pm2ProcessName: null }] },
+    { guildId: 'G1', servers: [{ label: 'main', restApiUrl: 'http://localhost:8212', restApiPassword: null, pm2ProcessName: null, saveFilePath: null }] },
   ]);
   fs.rmSync(dir, { recursive: true, force: true });
 });
@@ -76,7 +76,7 @@ test('loadServersFile defaults servers to [] when missing or malformed', () => {
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-const complete = (label, name) => ({ label, restApiUrl: `http://localhost:${name}`, restApiPassword: 'pw', pm2ProcessName: name });
+const complete = (label, name) => ({ label, restApiUrl: `http://localhost:${name}`, restApiPassword: 'pw', pm2ProcessName: name, saveFilePath: null });
 
 test('findGuildServers returns only complete servers for that guild', () => {
   const servers = [
