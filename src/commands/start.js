@@ -1,7 +1,8 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { successEmbed, errorEmbed } = require('../embeds');
+const { addServerOption } = require('../serverOption');
 
-const data = new SlashCommandBuilder().setName('start').setDescription('Start the Palworld server process');
+const data = addServerOption(new SlashCommandBuilder().setName('start').setDescription('Start the Palworld server process'));
 const tier = 'admin';
 
 async function execute(interaction, ctx) {

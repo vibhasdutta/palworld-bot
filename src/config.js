@@ -39,23 +39,48 @@ function loadChannelsFile(channelsPath) {
   }));
 }
 
-// Each guild's Palworld connection. A guild with no restApiUrl/pm2ProcessName
-// configured is structurally incapable of controlling any server, regardless
-// of what roles.json grants -- this is the multi-tenancy boundary, not just
-// an allowlist bolted on top.
+// Each guild's Palworld connection(s) -- a guild can list zero, one, or many
+// servers, each identified by a short `label`. A guild with no complete
+// server entries is structurally incapable of controlling anything,
+// regardless of what roles.json grants -- this is the multi-tenancy
+// boundary, not just an allowlist bolted on top.
+function normalizeServer(server) {
+  return {
+    label: server.label || null,
+    restApiUrl: server.restApiUrl || null,
+    restApiPassword: server.restApiPassword || null,
+    pm2ProcessName: server.pm2ProcessName || null,
+  };
+}
+
 function loadServersFile(serversPath) {
   return readJsonArray(serversPath).map((entry) => ({
     guildId: entry.guildId,
-    restApiUrl: entry.restApiUrl || null,
-    restApiPassword: entry.restApiPassword || null,
-    pm2ProcessName: entry.pm2ProcessName || null,
+    servers: Array.isArray(entry.servers) ? entry.servers.map(normalizeServer) : [],
   }));
 }
 
-function findGuildServer(servers, guildId) {
+function isCompleteServer(server) {
+  return Boolean(server?.label && server.restApiUrl && server.pm2ProcessName);
+}
+
+// Every complete (fully-configured) server for a guild -- what /status etc.
+// offer as autocomplete choices for the `server` option.
+function findGuildServers(servers, guildId) {
   const entry = servers.find((s) => s.guildId === guildId);
-  if (!entry || !entry.restApiUrl || !entry.pm2ProcessName) return null;
-  return entry;
+  return entry ? entry.servers.filter(isCompleteServer) : [];
+}
+
+// Resolves which single server a command should act on.
+// - No label given + exactly one server configured -> that one (the common
+//   case: most guilds only ever have one server, no need to specify it).
+// - No label given + zero or multiple servers -> null (ambiguous or
+//   unconfigured; the caller decides how to explain that).
+// - Label given -> that specific server, or null if no match.
+function findGuildServer(servers, guildId, label) {
+  const available = findGuildServers(servers, guildId);
+  if (label) return available.find((s) => s.label === label) || null;
+  return available.length === 1 ? available[0] : null;
 }
 
 // Registers a newly-seen guild across all four config files with empty/no-op
@@ -78,10 +103,7 @@ function ensureGuildEntry(guildsPath, rolesPath, channelsPath, serversPath, guil
   writeJsonArray(channelsPath, [...channels, { guildId, botChannelId: '', serverChannelId: '' }]);
 
   const servers = readJsonArray(serversPath);
-  writeJsonArray(serversPath, [
-    ...servers,
-    { guildId, restApiUrl: '', restApiPassword: '', pm2ProcessName: '' },
-  ]);
+  writeJsonArray(serversPath, [...servers, { guildId, servers: [] }]);
 
   return true;
 }
@@ -132,6 +154,7 @@ module.exports = {
   loadChannelsFile,
   loadServersFile,
   findGuildServer,
+  findGuildServers,
   ensureGuildEntry,
   mutateGuildRoles,
 };

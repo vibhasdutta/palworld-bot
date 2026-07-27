@@ -1,10 +1,11 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { successEmbed, errorEmbed } = require('../embeds');
+const { addServerOption } = require('../serverOption');
 
-const data = new SlashCommandBuilder()
+const data = addServerOption(new SlashCommandBuilder()
   .setName('unban')
   .setDescription('Remove a player ban')
-  .addStringOption((opt) => opt.setName('userid').setDescription('Player ID (e.g. steam_xxxx)').setRequired(true));
+  .addStringOption((opt) => opt.setName('userid').setDescription('Player ID (e.g. steam_xxxx)').setRequired(true)));
 const tier = 'operator';
 
 async function execute(interaction, ctx) {

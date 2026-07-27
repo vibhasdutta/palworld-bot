@@ -23,6 +23,7 @@ const data = new SlashCommandBuilder()
     .addUserOption((opt) => opt.setName('user').setDescription('User to revoke operator from').setRequired(true)))
   .addSubcommand((sub) => sub.setName('list').setDescription('List current operator roles and users'));
 const tier = 'admin';
+const needsServer = false; // manages roles.json, not the Palworld connection
 
 function mentionRoles(roleIds) {
   return roleIds.length ? roleIds.map((id) => `<@&${id}>`).join(', ') : '*none*';
@@ -79,4 +80,4 @@ async function execute(interaction, ctx) {
   }
 }
 
-module.exports = { data, tier, execute };
+module.exports = { data, tier, execute, needsServer };

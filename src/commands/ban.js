@@ -1,12 +1,13 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { awaitConfirmation } = require('../confirm');
 const { successEmbed, errorEmbed } = require('../embeds');
+const { addServerOption } = require('../serverOption');
 
-const data = new SlashCommandBuilder()
+const data = addServerOption(new SlashCommandBuilder()
   .setName('ban')
   .setDescription('Ban a player from the server')
   .addStringOption((opt) => opt.setName('userid').setDescription('Player ID (e.g. steam_xxxx)').setRequired(true))
-  .addStringOption((opt) => opt.setName('reason').setDescription('Reason shown to the player'));
+  .addStringOption((opt) => opt.setName('reason').setDescription('Reason shown to the player')));
 const tier = 'operator';
 
 async function execute(interaction, ctx) {

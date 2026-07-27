@@ -1,7 +1,8 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { successEmbed, errorEmbed } = require('../embeds');
+const { addServerOption } = require('../serverOption');
 
-const data = new SlashCommandBuilder().setName('save').setDescription('Save the world');
+const data = addServerOption(new SlashCommandBuilder().setName('save').setDescription('Save the world'));
 const tier = 'operator';
 
 async function execute(interaction, ctx) {

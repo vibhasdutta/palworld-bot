@@ -9,6 +9,7 @@ const {
   loadChannelsFile,
   loadServersFile,
   findGuildServer,
+  findGuildServers,
   ensureGuildEntry,
   mutateGuildRoles,
   loadConfig,
@@ -53,29 +54,66 @@ test('loadChannelsFile defaults missing channel IDs to null', () => {
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-test('loadServersFile defaults missing fields to null', () => {
+test('loadServersFile parses a guild\'s server list and defaults missing fields to null', () => {
   const dir = tmpConfigDir();
   const serversPath = path.join(dir, 'servers.json');
-  fs.writeFileSync(serversPath, JSON.stringify([{ guildId: 'G1', restApiUrl: 'http://localhost:8212' }]));
+  fs.writeFileSync(serversPath, JSON.stringify([
+    { guildId: 'G1', servers: [{ label: 'main', restApiUrl: 'http://localhost:8212' }] },
+  ]));
 
   assert.deepEqual(loadServersFile(serversPath), [
-    { guildId: 'G1', restApiUrl: 'http://localhost:8212', restApiPassword: null, pm2ProcessName: null },
+    { guildId: 'G1', servers: [{ label: 'main', restApiUrl: 'http://localhost:8212', restApiPassword: null, pm2ProcessName: null }] },
   ]);
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-test('findGuildServer returns null for an unregistered guild', () => {
-  assert.equal(findGuildServer([], 'G1'), null);
+test('loadServersFile defaults servers to [] when missing or malformed', () => {
+  const dir = tmpConfigDir();
+  const serversPath = path.join(dir, 'servers.json');
+  fs.writeFileSync(serversPath, JSON.stringify([{ guildId: 'G1' }]));
+
+  assert.deepEqual(loadServersFile(serversPath), [{ guildId: 'G1', servers: [] }]);
+  fs.rmSync(dir, { recursive: true, force: true });
 });
 
-test('findGuildServer returns null for a guild whose server isn\'t configured yet (empty stub)', () => {
-  const servers = [{ guildId: 'G1', restApiUrl: null, restApiPassword: null, pm2ProcessName: null }];
+const complete = (label, name) => ({ label, restApiUrl: `http://localhost:${name}`, restApiPassword: 'pw', pm2ProcessName: name });
+
+test('findGuildServers returns only complete servers for that guild', () => {
+  const servers = [
+    {
+      guildId: 'G1',
+      servers: [complete('main', 'palworld'), { label: 'incomplete', restApiUrl: '', restApiPassword: '', pm2ProcessName: '' }],
+    },
+  ];
+  assert.deepEqual(findGuildServers(servers, 'G1'), [complete('main', 'palworld')]);
+});
+
+test('findGuildServers returns [] for an unregistered guild', () => {
+  assert.deepEqual(findGuildServers([], 'G1'), []);
+});
+
+test('findGuildServer with no label auto-picks the only server when there\'s exactly one', () => {
+  const servers = [{ guildId: 'G1', servers: [complete('main', 'palworld')] }];
+  assert.deepEqual(findGuildServer(servers, 'G1'), complete('main', 'palworld'));
+});
+
+test('findGuildServer with no label returns null when a guild has zero servers', () => {
+  assert.equal(findGuildServer([{ guildId: 'G1', servers: [] }], 'G1'), null);
+});
+
+test('findGuildServer with no label returns null when a guild has multiple servers (ambiguous)', () => {
+  const servers = [{ guildId: 'G1', servers: [complete('main', 'palworld'), complete('pvp', 'palworld2')] }];
   assert.equal(findGuildServer(servers, 'G1'), null);
 });
 
-test('findGuildServer returns the entry once restApiUrl and pm2ProcessName are both set', () => {
-  const servers = [{ guildId: 'G1', restApiUrl: 'http://localhost:8212', restApiPassword: 'pw', pm2ProcessName: 'palworld' }];
-  assert.deepEqual(findGuildServer(servers, 'G1'), servers[0]);
+test('findGuildServer with a label returns the matching server even among several', () => {
+  const servers = [{ guildId: 'G1', servers: [complete('main', 'palworld'), complete('pvp', 'palworld2')] }];
+  assert.deepEqual(findGuildServer(servers, 'G1', 'pvp'), complete('pvp', 'palworld2'));
+});
+
+test('findGuildServer with an unknown label returns null', () => {
+  const servers = [{ guildId: 'G1', servers: [complete('main', 'palworld')] }];
+  assert.equal(findGuildServer(servers, 'G1', 'nope'), null);
 });
 
 test('ensureGuildEntry registers a new guild across all four files with empty defaults', () => {
@@ -93,7 +131,7 @@ test('ensureGuildEntry registers a new guild across all four files with empty de
     { guildId: 'G1', admin: { roleIds: [], userIds: [] }, operator: { roleIds: [], userIds: [] } },
   ]);
   assert.deepEqual(loadChannelsFile(channelsPath), [{ guildId: 'G1', botChannelId: null, serverChannelId: null }]);
-  assert.deepEqual(loadServersFile(serversPath), [{ guildId: 'G1', restApiUrl: null, restApiPassword: null, pm2ProcessName: null }]);
+  assert.deepEqual(loadServersFile(serversPath), [{ guildId: 'G1', servers: [] }]);
   fs.rmSync(dir, { recursive: true, force: true });
 });
 

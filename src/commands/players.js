@@ -1,7 +1,8 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const { errorEmbed } = require('../embeds');
+const { addServerOption } = require('../serverOption');
 
-const data = new SlashCommandBuilder().setName('players').setDescription('List connected players');
+const data = addServerOption(new SlashCommandBuilder().setName('players').setDescription('List connected players'));
 const tier = 'operator';
 
 async function execute(interaction, ctx) {

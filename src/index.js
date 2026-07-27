@@ -9,6 +9,7 @@ const {
   loadChannelsFile,
   loadServersFile,
   findGuildServer,
+  findGuildServers,
 } = require('./config');
 const { resolveTier, hasAccess, findGuildRoles } = require('./permissions');
 const { createPalworldClient } = require('./palworldClient');
@@ -16,7 +17,12 @@ const { controlService } = require('./processControl');
 const { appendAuditEntry } = require('./auditLog');
 const { errorEmbed } = require('./embeds');
 const { createNotifier, formatAuditEntry } = require('./notify');
+const { autocompleteServer } = require('./serverOption');
+const { createExpectedActions } = require('./expectedActions');
+const { watchPm2 } = require('./pm2Watcher');
 const loadCommands = require('./commands');
+
+const BOT_PM2_NAME = 'palworld-bot';
 
 const config = loadConfig();
 const commands = loadCommands();
@@ -44,6 +50,7 @@ const client = new Client({
 });
 
 const notify = createNotifier(client, () => config.channels);
+const expectedActions = createExpectedActions();
 
 const auditLog = {
   appendAuditEntry: (entry) => {
@@ -53,22 +60,41 @@ const auditLog = {
   },
 };
 
-// Each guild is its own tenant: no shared Palworld connection. A guild with
-// no server configured (empty restApiUrl/pm2ProcessName in config/servers.json)
-// gets `null` here and cannot run anything server-related, regardless of what
-// roles.json grants -- this is what stops an unrelated guild that invites the
-// bot from ever touching a server that isn't theirs.
-function buildGuildCtx(guildId) {
-  const server = findGuildServer(config.servers, guildId);
-  if (!server) return null;
-  return {
-    config,
-    palworld: createPalworldClient({ baseUrl: server.restApiUrl, password: server.restApiPassword }),
-    processControl: {
-      controlService: (action) => controlService(server.pm2ProcessName, action),
-    },
-    auditLog,
-  };
+const baseCtx = { config, auditLog };
+
+// Resolves which server (if any) a command should act on for this guild, and
+// builds the ctx for it. A guild is its own tenant: no shared Palworld
+// connection. Zero configured servers, an ambiguous "which one" with more
+// than one and no label given, or an unknown label all fail closed --
+// `errorMessage` explains which case it was so the user isn't just told "no".
+function resolveServerCtx(guildId, label) {
+  const server = findGuildServer(config.servers, guildId, label);
+  if (server) {
+    return {
+      ctx: {
+        ...baseCtx,
+        palworld: createPalworldClient({ baseUrl: server.restApiUrl, password: server.restApiPassword }),
+        processControl: {
+          controlService: (action) => {
+            expectedActions.expect(server.pm2ProcessName);
+            return controlService(server.pm2ProcessName, action);
+          },
+        },
+      },
+      errorMessage: null,
+    };
+  }
+
+  const available = findGuildServers(config.servers, guildId);
+  let errorMessage;
+  if (available.length === 0) {
+    errorMessage = 'No Palworld server is configured for this Discord server yet. Ask the bot owner to fill in config/servers.json.';
+  } else if (label) {
+    errorMessage = `No server named \`${label}\` found for this guild. Available: ${available.map((s) => s.label).join(', ')}.`;
+  } else {
+    errorMessage = `This guild has multiple servers — specify which one with the \`server\` option: ${available.map((s) => s.label).join(', ')}.`;
+  }
+  return { ctx: null, errorMessage };
 }
 
 async function onboardGuild(guildId, guildName) {
@@ -121,6 +147,34 @@ function watchConfigFiles() {
 
 watchConfigFiles();
 
+// Catches `pm2 start/stop/restart` run directly (e.g. over SSH) instead of
+// through the bot -- Discord never sees those otherwise. expectedActions
+// filters out the bot's own pm2 calls (already reported via the normal
+// command/audit-log flow) so only genuinely-external actions get flagged.
+function findOwningGuilds(processName) {
+  const owners = [];
+  for (const entry of config.servers) {
+    for (const server of entry.servers) {
+      if (server.pm2ProcessName === processName) owners.push(entry.guildId);
+    }
+  }
+  return owners;
+}
+
+watchPm2({
+  expectedActions,
+  onExternalEvent: (processName, eventType) => {
+    const verb = eventType === 'online' ? 'started' : eventType;
+    const message = `:warning: **${processName}** was ${verb} directly via \`pm2\` (not through the bot) — check who has VM access.`;
+
+    if (processName === BOT_PM2_NAME) {
+      for (const entry of config.channels) notify.botLog(entry.guildId, message).catch(() => {});
+      return;
+    }
+    for (const guildId of findOwningGuilds(processName)) notify.serverLog(guildId, message).catch(() => {});
+  },
+});
+
 client.once(Events.ClientReady, async (readyClient) => {
   console.log(`Logged in as ${readyClient.user.tag}`);
   for (const guild of readyClient.guilds.cache.values()) {
@@ -133,6 +187,13 @@ client.on(Events.GuildCreate, (guild) => {
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {
+  if (interaction.isAutocomplete()) {
+    if (interaction.options.getFocused(true).name === 'server') {
+      await autocompleteServer(interaction, config).catch((err) => console.error('Autocomplete failed:', err.message));
+    }
+    return;
+  }
+
   if (!interaction.isChatInputCommand()) return;
 
   const command = commands.get(interaction.commandName);
@@ -151,14 +212,19 @@ client.on(Events.InteractionCreate, async (interaction) => {
     return;
   }
 
-  const guildCtx = buildGuildCtx(interaction.guildId);
-  if (!guildCtx) {
-    await interaction.reply({ embeds: [errorEmbed('No Palworld server is configured for this Discord server yet. Ask the bot owner to fill in config/servers.json.')], ephemeral: true });
-    return;
+  let execCtx = baseCtx;
+  if (command.needsServer !== false) {
+    const label = interaction.options.getString('server');
+    const { ctx, errorMessage } = resolveServerCtx(interaction.guildId, label);
+    if (!ctx) {
+      await interaction.reply({ embeds: [errorEmbed(errorMessage)], ephemeral: true });
+      return;
+    }
+    execCtx = ctx;
   }
 
   try {
-    await command.execute(interaction, guildCtx);
+    await command.execute(interaction, execCtx);
   } catch (err) {
     console.error(`Error executing /${interaction.commandName}:`, err);
     const payload = { embeds: [errorEmbed(`Something went wrong: ${err.message}`)], ephemeral: true };

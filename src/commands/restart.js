@@ -3,11 +3,12 @@ const { awaitConfirmation } = require('../confirm');
 const { successEmbed, errorEmbed } = require('../embeds');
 const { buildStatusEmbed } = require('../statusEmbed');
 const { PalworldApiError } = require('../palworldClient');
+const { addServerOption } = require('../serverOption');
 
-const data = new SlashCommandBuilder()
+const data = addServerOption(new SlashCommandBuilder()
   .setName('restart')
   .setDescription('Restart the Palworld server process')
-  .addIntegerOption((opt) => opt.setName('waittime').setDescription('Seconds to warn players before restarting').setMinValue(0));
+  .addIntegerOption((opt) => opt.setName('waittime').setDescription('Seconds to warn players before restarting').setMinValue(0)));
 const tier = 'admin';
 
 async function execute(interaction, ctx) {

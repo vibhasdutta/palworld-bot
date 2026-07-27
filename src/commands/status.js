@@ -1,8 +1,9 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { errorEmbed } = require('../embeds');
 const { buildStatusEmbed } = require('../statusEmbed');
+const { addServerOption } = require('../serverOption');
 
-const data = new SlashCommandBuilder().setName('status').setDescription('Show Palworld server status');
+const data = addServerOption(new SlashCommandBuilder().setName('status').setDescription('Show Palworld server status'));
 const tier = 'operator';
 
 async function execute(interaction, ctx) {

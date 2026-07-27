@@ -3,12 +3,13 @@ const { awaitConfirmation } = require('../confirm');
 const { PalworldApiError } = require('../palworldClient');
 const { successEmbed, errorEmbed } = require('../embeds');
 const { buildStatusEmbed } = require('../statusEmbed');
+const { addServerOption } = require('../serverOption');
 
-const data = new SlashCommandBuilder()
+const data = addServerOption(new SlashCommandBuilder()
   .setName('stop')
   .setDescription('Stop the Palworld server')
   .addIntegerOption((opt) => opt.setName('waittime').setDescription('Seconds to warn players before shutdown').setMinValue(0))
-  .addBooleanOption((opt) => opt.setName('force').setDescription('Force stop immediately, skipping the in-game warning'));
+  .addBooleanOption((opt) => opt.setName('force').setDescription('Force stop immediately, skipping the in-game warning')));
 const tier = 'admin';
 
 async function execute(interaction, ctx) {
