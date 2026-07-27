@@ -164,7 +164,10 @@ function findOwningGuilds(processName) {
 watchPm2({
   expectedActions,
   onExternalEvent: (processName, eventType) => {
-    const verb = { online: 'started', restart: 'restarted', stop: 'stopped' }[eventType] || eventType;
+    // PM2 doesn't distinguish a first start from a restart at the event
+    // level (see pm2Watcher.js) -- 'restart' covers both, so say so honestly
+    // rather than guessing which one it was.
+    const verb = eventType === 'restart' ? 'started or restarted' : 'stopped';
     const message = `:warning: **${processName}** was ${verb} directly via \`pm2\` (not through the bot) — check who has VM access.`;
 
     if (processName === BOT_PM2_NAME) {

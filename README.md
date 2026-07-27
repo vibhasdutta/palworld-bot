@@ -146,7 +146,11 @@ Every command except `/operator` takes an optional `server` option (autocomplete
 
 ## Catching manual `pm2` commands
 
-The bot also watches PM2's own event bus (not just its own actions) — if someone runs `pm2 stop palworld`, `pm2 restart palworld-bot`, etc. directly over SSH instead of through a Discord command, that gets posted to the relevant guild's `serverChannelId` (or every guild's `botChannelId`, for the bot's own process, since that one isn't guild-specific) as an external-action warning. Actions the bot itself triggers are recognized and not double-reported. One caveat: if the *bot's own* process is killed externally, there's only a brief best-effort window to report that before it actually dies — it's not guaranteed for that one case.
+The bot also watches PM2's own event bus (not just its own actions) — if someone runs `pm2 stop palworld`, `pm2 restart palworld-bot`, etc. directly over SSH instead of through a Discord command, that gets posted to the relevant guild's `serverChannelId` (or every guild's `botChannelId`, for the bot's own process, since that one isn't guild-specific) as an external-action warning. Actions the bot itself triggers are recognized and not double-reported.
+
+PM2 doesn't distinguish "first start" from "restart" at the event level — even a plain `pm2 start` on a stopped process internally fires the same event a restart does — so the warning says "started or restarted" rather than guessing which one it actually was.
+
+One caveat: if the *bot's own* process is killed externally, there's only a brief best-effort window to report that before it actually dies — it's not guaranteed for that one case.
 
 ---
 

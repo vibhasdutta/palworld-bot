@@ -1,6 +1,11 @@
 const pm2 = require('pm2');
 
-const WATCHED_EVENTS = new Set(['stop', 'restart', 'online']);
+// PM2 fires BOTH 'online' and 'restart' for a single restart -- and even a
+// plain `pm2 start` on a stopped process fires 'restart' too (PM2 doesn't
+// distinguish "first start" from "restart" at the event-bus level, it always
+// goes through the same internal restart path). Watching only 'restart' and
+// 'stop' means exactly one event per real action instead of two.
+const WATCHED_EVENTS = new Set(['stop', 'restart']);
 
 // Listens on PM2's own event bus for start/stop/restart of any process --
 // this fires no matter how it happened (bot-triggered `pm2 restart` call, or
