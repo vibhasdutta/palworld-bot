@@ -25,26 +25,41 @@ async function execute(interaction, ctx) {
   const confirmed = await awaitConfirmation(interaction, 'stop', { embeds: statusEmbeds });
   if (!confirmed) return;
 
+  let restApiWorked = true;
   try {
     if (force) {
       await ctx.palworld.stop();
     } else {
       await ctx.palworld.shutdown(waittime, `Server is shutting down in ${waittime} seconds.`);
     }
-    ctx.auditLog.appendAuditEntry({ actor: interaction.user.tag, command: 'stop', force, waittime });
-    await interaction.followUp({ embeds: [successEmbed('Server stop triggered.')] });
-    return;
   } catch (err) {
     if (!(err instanceof PalworldApiError)) {
       await interaction.followUp({ embeds: [errorEmbed(`Failed to stop: ${err.message}`)], ephemeral: true });
       return;
     }
+    restApiWorked = false;
+  }
+
+  if (restApiWorked) {
+    // PalServer's own REST shutdown makes the process exit on its own timeline
+    // (immediately for force, after the in-game countdown otherwise). PM2's
+    // autorestart can't tell that apart from a crash and brings it right back
+    // up -- wait for the exit, then explicitly `pm2 stop` so PM2 knows this
+    // was intentional and stays down.
+    const delaySeconds = force ? 3 : waittime + 5;
+    await new Promise((resolve) => setTimeout(resolve, delaySeconds * 1000));
   }
 
   try {
     await ctx.processControl.controlService('stop');
-    ctx.auditLog.appendAuditEntry({ actor: interaction.user.tag, command: 'stop', via: 'pm2-fallback' });
-    await interaction.followUp({ embeds: [successEmbed('Server was unreachable via REST API — stopped via pm2 instead.')] });
+    ctx.auditLog.appendAuditEntry({
+      actor: interaction.user.tag,
+      command: 'stop',
+      force,
+      waittime,
+      via: restApiWorked ? 'rest+pm2' : 'pm2-fallback',
+    });
+    await interaction.followUp({ embeds: [successEmbed('Server stopped.')] });
   } catch (err) {
     await interaction.followUp({ embeds: [errorEmbed(`Failed to stop: ${err.message}`)], ephemeral: true });
   }

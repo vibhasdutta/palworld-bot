@@ -58,6 +58,7 @@ Boot persistence is already installed (`systemctl status pm2-morfit` — a syste
 - Auth: HTTP Basic, username `admin`, password = `PALWORLD_ADMIN_PASSWORD` in `.env`
 - Bound to localhost only — never expose port 8212 to the internet (Azure NSG should not have an inbound rule for it)
 - Manual smoke test: `cd /home/morfit/palworld-bot && node --env-file=.env scripts/check-rest-api.js`
+- **Gotcha (already handled in `/stop`'s code, documented here so it isn't reintroduced):** the REST API's `shutdown`/`stop` endpoints make the PalServer *process itself* exit. Since `palworld`'s PM2 entry has `autorestart: true`, PM2 can't tell that apart from a crash and will bring it right back up on its own within seconds. `/stop` waits out the shutdown, then explicitly calls `pm2 stop palworld` so PM2 knows it was intentional and stays down. If you ever call the REST shutdown endpoint directly (bypassing the bot), follow it with a manual `pm2 stop palworld` too.
 
 ## Deploying code changes
 
