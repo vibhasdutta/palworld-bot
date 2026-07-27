@@ -5,7 +5,7 @@ Live deployment: `20.207.201.17`, user `morfit`.
 ## Layout on the VM
 
 - `/home/morfit/palworld/` — the Palworld dedicated server (SteamCMD install, `PalServer.sh`, `PalWorldSettings.ini` under `Pal/Saved/Config/LinuxServer/`)
-- `/home/morfit/palworld-bot/` — this bot's code, `.env` (secrets), `config/guilds.json` (per-guild permissions)
+- `/home/morfit/palworld-bot/` — this bot's code, `.env` (secrets), `config/{guilds,roles,channels}.json` (per-guild registry/permissions/channel routing)
 
 Both processes run under **PM2** as the `morfit` user — no systemd units, no sudo needed for day-to-day control.
 
@@ -32,16 +32,20 @@ Boot persistence is already installed (`systemctl status pm2-morfit` — a syste
 
 ## Config files
 
-- **`.env`** (gitignored, lives only on the VM and your local machine) — Discord bot token, client ID, Palworld REST API URL/password, PM2 process name. Restart the bot after editing.
-- **`config/guilds.json`** (gitignored) — one entry per Discord server the bot is in:
+All three below live in `config/`, are gitignored (VM/local only), and are **auto-registered** the moment the bot joins a guild (or on its own startup for guilds it's already in) — you never need to look up a guild ID by hand, and all three files are joined by that same `guildId`. All three **hot-reload within ~1 second of saving** — no restart needed after editing any of them.
+
+- **`.env`** — Discord bot token, client ID, Palworld REST API URL/password, PM2 process name. This one is *not* hot-reloaded — restart the bot (`pm2 restart palworld-bot`) after editing it.
+- **`config/guilds.json`** — just the registry of known guilds: `[{ "guildId": "..." }]`. Mostly for your own visibility; not something you need to edit.
+- **`config/roles.json`** — who has access, per guild:
   ```json
-  {
-    "guildId": "...",
-    "admin":    { "roleIds": [...], "userIds": [...] },
-    "operator": { "roleIds": [...], "userIds": [...] }
-  }
+  { "guildId": "...", "admin": { "roleIds": [...], "userIds": [...] }, "operator": { "roleIds": [...], "userIds": [...] } }
   ```
-  The bot **creates this entry automatically** the moment it joins a guild (or on its own startup for guilds it's already in) — you never need to look up a guild ID by hand. New entries start with empty `roleIds`/`userIds`, meaning **nobody has access yet**. Add role IDs and/or individual user IDs to `admin`/`operator` — the bot **watches this file and hot-reloads it within ~1 second of saving**, no restart needed. A role and a user ID work independently — either grants that tier.
+  New entries start with empty `roleIds`/`userIds`, meaning **nobody has access yet**. A role ID and a user ID work independently — either grants that tier.
+- **`config/channels.json`** — where the bot posts, per guild:
+  ```json
+  { "guildId": "...", "botChannelId": "...", "serverChannelId": "..." }
+  ```
+  `botChannelId` gets the bot's own operational log (permission denials, command errors). `serverChannelId` gets a live feed of every successful admin/moderation action (kick/ban/unban/announce/save/start/stop/restart), mirroring `data/audit-log.json`. **Leave either blank (`""`) to disable that stream** — the bot silently skips posting instead of erroring. New guild entries start with both blank.
 
 ## Commands the bot exposes
 
@@ -83,4 +87,4 @@ npm run deploy-commands
 
 ## First-time access setup (still needed)
 
-The bot is online and has auto-registered itself in every guild it's been invited to, but **no one has admin/operator access yet**. Edit `config/guilds.json` on the VM to add your Discord user ID (or a role ID) to the `admin` tier — it hot-reloads automatically, no restart needed.
+The bot is online and has auto-registered itself in every guild it's been invited to, but new guilds start with **no admin/operator access and no channels configured**. Edit `config/roles.json` on the VM to add your Discord user ID (or a role ID) to the `admin` tier, and `config/channels.json` if you want the bot/server log channels — both hot-reload automatically, no restart needed.

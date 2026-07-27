@@ -1,12 +1,13 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { Client, GatewayIntentBits, Events, REST, Routes, Options } = require('discord.js');
-const { loadConfig, ensureGuildEntry, loadGuildsFile } = require('./config');
+const { loadConfig, ensureGuildEntry, loadGuildsFile, loadRolesFile, loadChannelsFile } = require('./config');
 const { resolveTier, hasAccess, findGuildRoles } = require('./permissions');
 const { createPalworldClient } = require('./palworldClient');
 const { controlService } = require('./processControl');
 const { appendAuditEntry } = require('./auditLog');
 const { errorEmbed } = require('./embeds');
+const { createNotifier, formatAuditEntry } = require('./notify');
 const loadCommands = require('./commands');
 
 const config = loadConfig();
@@ -15,17 +16,6 @@ const commandData = [...commands.values()].map((c) => c.data.toJSON());
 const rest = new REST().setToken(config.discordToken);
 
 const palworld = createPalworldClient({ baseUrl: config.restApiUrl, password: config.restApiPassword });
-
-const ctx = {
-  config,
-  palworld,
-  processControl: {
-    controlService: (action) => controlService(config.pm2ProcessName, action),
-  },
-  auditLog: {
-    appendAuditEntry: (entry) => appendAuditEntry(config.auditLogPath, entry),
-  },
-};
 
 // ponytail: this bot only handles slash commands, never reads messages/presences/
 // reactions/voice state — zeroing those caches keeps memory flat instead of growing
@@ -47,11 +37,30 @@ const client = new Client({
   }),
 });
 
+const notify = createNotifier(client, () => config.channels);
+
+const ctx = {
+  config,
+  palworld,
+  processControl: {
+    controlService: (action) => controlService(config.pm2ProcessName, action),
+  },
+  auditLog: {
+    appendAuditEntry: (entry) => {
+      const saved = appendAuditEntry(config.auditLogPath, entry);
+      if (entry.guildId) notify.serverLog(entry.guildId, formatAuditEntry(entry)).catch(() => {});
+      return saved;
+    },
+  },
+};
+
 async function onboardGuild(guildId, guildName) {
-  const added = ensureGuildEntry(config.guildsPath, guildId);
+  const added = ensureGuildEntry(config.guildsPath, config.rolesPath, config.channelsPath, guildId);
   if (added) {
     config.guilds = loadGuildsFile(config.guildsPath);
-    console.log(`Joined "${guildName}" (${guildId}) — added a stub entry to config/guilds.json with no roles granted yet. Edit it to give people access.`);
+    config.roles = loadRolesFile(config.rolesPath);
+    config.channels = loadChannelsFile(config.channelsPath);
+    console.log(`Joined "${guildName}" (${guildId}) — added stub entries to config/roles.json (no access granted yet) and config/channels.json (no channels set). Edit them to give people access / enable logging.`);
   }
 
   try {
@@ -62,30 +71,36 @@ async function onboardGuild(guildId, guildName) {
   }
 }
 
-// ponytail: watch the directory, not the file directly — editors like nano/vim
+// ponytail: watch the directory, not each file directly — editors like nano/vim
 // replace the file on save (write temp + rename), which breaks a watch held on
 // the original inode. Debounced since a single save can fire multiple events.
-function watchGuildsFile() {
-  const dir = path.dirname(config.guildsPath);
-  const target = path.basename(config.guildsPath);
+function watchConfigFiles() {
+  const dir = path.dirname(config.guildsPath); // guilds/roles/channels all live in config/
   fs.mkdirSync(dir, { recursive: true });
 
-  let debounceTimer = null;
+  const reloaders = {
+    [path.basename(config.guildsPath)]: () => { config.guilds = loadGuildsFile(config.guildsPath); },
+    [path.basename(config.rolesPath)]: () => { config.roles = loadRolesFile(config.rolesPath); },
+    [path.basename(config.channelsPath)]: () => { config.channels = loadChannelsFile(config.channelsPath); },
+  };
+
+  const debounceTimers = {};
   fs.watch(dir, (eventType, filename) => {
-    if (filename !== target) return;
-    clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(() => {
+    const reload = reloaders[filename];
+    if (!reload) return;
+    clearTimeout(debounceTimers[filename]);
+    debounceTimers[filename] = setTimeout(() => {
       try {
-        config.guilds = loadGuildsFile(config.guildsPath);
-        console.log('Reloaded config/guilds.json.');
+        reload();
+        console.log(`Reloaded config/${filename}.`);
       } catch (err) {
-        console.error('Failed to reload config/guilds.json (keeping previous values):', err.message);
+        console.error(`Failed to reload config/${filename} (keeping previous values):`, err.message);
       }
     }, 200);
   });
 }
 
-watchGuildsFile();
+watchConfigFiles();
 
 client.once(Events.ClientReady, async (readyClient) => {
   console.log(`Logged in as ${readyClient.user.tag}`);
@@ -108,11 +123,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
     roleIds: interaction.member?.roles?.cache ? [...interaction.member.roles.cache.keys()] : [],
     userId: interaction.user.id,
   };
-  const guildRoles = findGuildRoles(config.guilds, interaction.guildId);
+  const guildRoles = findGuildRoles(config.roles, interaction.guildId);
   const tier = resolveTier(member, guildRoles);
 
   if (!hasAccess(tier, command.tier)) {
     await interaction.reply({ embeds: [errorEmbed('You do not have permission to use this command.')], ephemeral: true });
+    notify.botLog(interaction.guildId, `**${interaction.user.tag}** was denied \`/${interaction.commandName}\` (no ${command.tier} access).`).catch(() => {});
     return;
   }
 
@@ -126,6 +142,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     } else {
       await interaction.reply(payload);
     }
+    notify.botLog(interaction.guildId, `**Error** running \`/${interaction.commandName}\` for **${interaction.user.tag}**: ${err.message}`).catch(() => {});
   }
 });
 

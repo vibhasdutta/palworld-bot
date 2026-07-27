@@ -53,6 +53,7 @@ async function execute(interaction, ctx) {
   try {
     await ctx.processControl.controlService('stop');
     ctx.auditLog.appendAuditEntry({
+      guildId: interaction.guildId,
       actor: interaction.user.tag,
       command: 'stop',
       force,

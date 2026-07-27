@@ -8,33 +8,65 @@ function normalizeTier(tier) {
   };
 }
 
+function readJsonArray(filePath) {
+  if (!fs.existsSync(filePath)) return [];
+  const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  return Array.isArray(parsed) ? parsed : [];
+}
+
+function writeJsonArray(filePath, entries) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, JSON.stringify(entries, null, 2));
+}
+
 function loadGuildsFile(guildsPath) {
-  if (!fs.existsSync(guildsPath)) return [];
-  const parsed = JSON.parse(fs.readFileSync(guildsPath, 'utf8'));
-  const guilds = Array.isArray(parsed) ? parsed : [];
-  return guilds.map((guild) => ({
-    guildId: guild.guildId,
-    admin: normalizeTier(guild.admin),
-    operator: normalizeTier(guild.operator),
+  return readJsonArray(guildsPath).map((guild) => ({ guildId: guild.guildId }));
+}
+
+function loadRolesFile(rolesPath) {
+  return readJsonArray(rolesPath).map((entry) => ({
+    guildId: entry.guildId,
+    admin: normalizeTier(entry.admin),
+    operator: normalizeTier(entry.operator),
   }));
 }
 
-function ensureGuildEntry(guildsPath, guildId) {
-  const guilds = loadGuildsFile(guildsPath);
-  if (guilds.some((guild) => guild.guildId === guildId)) return false;
+function loadChannelsFile(channelsPath) {
+  return readJsonArray(channelsPath).map((entry) => ({
+    guildId: entry.guildId,
+    botChannelId: entry.botChannelId || null,
+    serverChannelId: entry.serverChannelId || null,
+  }));
+}
 
-  guilds.push({
-    guildId,
-    admin: { roleIds: [], userIds: [] },
-    operator: { roleIds: [], userIds: [] },
-  });
-  fs.mkdirSync(path.dirname(guildsPath), { recursive: true });
-  fs.writeFileSync(guildsPath, JSON.stringify(guilds, null, 2));
+// Registers a newly-seen guild across all three config files with empty/no-op
+// defaults (no roles granted, no channels to post to) so the human only ever
+// has to *edit* values, never create the entries by hand. Returns true the
+// first time a guild is seen, false on every call after.
+function ensureGuildEntry(guildsPath, rolesPath, channelsPath, guildId) {
+  const guilds = readJsonArray(guildsPath);
+  if (guilds.some((g) => g.guildId === guildId)) return false;
+
+  writeJsonArray(guildsPath, [...guilds, { guildId }]);
+
+  const roles = readJsonArray(rolesPath);
+  writeJsonArray(rolesPath, [
+    ...roles,
+    { guildId, admin: { roleIds: [], userIds: [] }, operator: { roleIds: [], userIds: [] } },
+  ]);
+
+  const channels = readJsonArray(channelsPath);
+  writeJsonArray(channelsPath, [...channels, { guildId, botChannelId: '', serverChannelId: '' }]);
+
   return true;
 }
 
 function loadConfig(env = process.env) {
-  const guildsPath = env.GUILDS_CONFIG_PATH || path.join(__dirname, '..', 'config', 'guilds.json');
+  const configDir = env.CONFIG_DIR || path.join(__dirname, '..', 'config');
+  const guildsPath = env.GUILDS_CONFIG_PATH || path.join(configDir, 'guilds.json');
+  const rolesPath = env.ROLES_CONFIG_PATH || path.join(configDir, 'roles.json');
+  const channelsPath = env.CHANNELS_CONFIG_PATH || path.join(configDir, 'channels.json');
+
   return {
     discordToken: env.DISCORD_TOKEN,
     clientId: env.DISCORD_CLIENT_ID,
@@ -43,8 +75,18 @@ function loadConfig(env = process.env) {
     pm2ProcessName: env.PALWORLD_PM2_NAME || 'palworld',
     auditLogPath: env.AUDIT_LOG_PATH || path.join(__dirname, '..', 'data', 'audit-log.json'),
     guildsPath,
+    rolesPath,
+    channelsPath,
     guilds: loadGuildsFile(guildsPath),
+    roles: loadRolesFile(rolesPath),
+    channels: loadChannelsFile(channelsPath),
   };
 }
 
-module.exports = { loadConfig, loadGuildsFile, ensureGuildEntry };
+module.exports = {
+  loadConfig,
+  loadGuildsFile,
+  loadRolesFile,
+  loadChannelsFile,
+  ensureGuildEntry,
+};

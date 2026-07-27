@@ -18,7 +18,7 @@ async function execute(interaction, ctx) {
 
   try {
     await ctx.palworld.ban(userid, reason);
-    ctx.auditLog.appendAuditEntry({ actor: interaction.user.tag, command: 'ban', target: userid, reason });
+    ctx.auditLog.appendAuditEntry({ guildId: interaction.guildId, actor: interaction.user.tag, command: 'ban', target: userid, reason });
     await ctx.palworld.announce(`${userid} was banned. Reason: ${reason}`).catch(() => {});
     await interaction.followUp({ embeds: [successEmbed(`Banned \`${userid}\`.`)] });
   } catch (err) {
