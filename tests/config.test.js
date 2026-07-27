@@ -53,7 +53,7 @@ test('loadConfig reads secrets from env and applies defaults', () => {
 
   assert.equal(config.discordToken, 'tok');
   assert.equal(config.restApiUrl, 'http://localhost:8212');
-  assert.equal(config.systemdUnit, 'palworld.service');
+  assert.equal(config.pm2ProcessName, 'palworld');
   assert.equal(config.guilds.length, 1);
   assert.equal(config.guilds[0].guildId, 'G1');
   fs.rmSync(dir, { recursive: true, force: true });

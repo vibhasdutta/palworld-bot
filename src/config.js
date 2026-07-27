@@ -9,6 +9,7 @@ function normalizeTier(tier) {
 }
 
 function loadGuildsFile(guildsPath) {
+  if (!fs.existsSync(guildsPath)) return [];
   const parsed = JSON.parse(fs.readFileSync(guildsPath, 'utf8'));
   const guilds = Array.isArray(parsed) ? parsed : [];
   return guilds.map((guild) => ({
@@ -18,6 +19,20 @@ function loadGuildsFile(guildsPath) {
   }));
 }
 
+function ensureGuildEntry(guildsPath, guildId) {
+  const guilds = loadGuildsFile(guildsPath);
+  if (guilds.some((guild) => guild.guildId === guildId)) return false;
+
+  guilds.push({
+    guildId,
+    admin: { roleIds: [], userIds: [] },
+    operator: { roleIds: [], userIds: [] },
+  });
+  fs.mkdirSync(path.dirname(guildsPath), { recursive: true });
+  fs.writeFileSync(guildsPath, JSON.stringify(guilds, null, 2));
+  return true;
+}
+
 function loadConfig(env = process.env) {
   const guildsPath = env.GUILDS_CONFIG_PATH || path.join(__dirname, '..', 'config', 'guilds.json');
   return {
@@ -25,10 +40,11 @@ function loadConfig(env = process.env) {
     clientId: env.DISCORD_CLIENT_ID,
     restApiUrl: env.PALWORLD_REST_URL || 'http://localhost:8212',
     restApiPassword: env.PALWORLD_ADMIN_PASSWORD,
-    systemdUnit: env.PALWORLD_SYSTEMD_UNIT || 'palworld.service',
+    pm2ProcessName: env.PALWORLD_PM2_NAME || 'palworld',
     auditLogPath: env.AUDIT_LOG_PATH || path.join(__dirname, '..', 'data', 'audit-log.json'),
+    guildsPath,
     guilds: loadGuildsFile(guildsPath),
   };
 }
 
-module.exports = { loadConfig, loadGuildsFile };
+module.exports = { loadConfig, loadGuildsFile, ensureGuildEntry };

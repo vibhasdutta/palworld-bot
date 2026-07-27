@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { controlService, ALLOWED_ACTIONS } = require('../src/processControl');
 
-test('controlService runs sudo systemctl <action> <unit> via the injected execFile', async () => {
+test('controlService runs pm2 <action> <name> via the injected execFile', async () => {
   let capturedCmd, capturedArgs;
   const fakeExecFile = (cmd, args, cb) => {
     capturedCmd = cmd;
@@ -10,11 +10,11 @@ test('controlService runs sudo systemctl <action> <unit> via the injected execFi
     cb(null, 'ok', '');
   };
 
-  const result = await controlService('palworld.service', 'restart', fakeExecFile);
+  const result = await controlService('palworld', 'restart', fakeExecFile);
 
   assert.equal(result, 'ok');
-  assert.equal(capturedCmd, 'sudo');
-  assert.deepEqual(capturedArgs, ['/usr/bin/systemctl', 'restart', 'palworld.service']);
+  assert.equal(capturedCmd, 'pm2');
+  assert.deepEqual(capturedArgs, ['restart', 'palworld']);
 });
 
 test('controlService rejects unsupported actions without touching execFile', async () => {
@@ -23,18 +23,18 @@ test('controlService rejects unsupported actions without touching execFile', asy
     called = true;
   };
 
-  await assert.rejects(() => controlService('palworld.service', 'delete', fakeExecFile));
+  await assert.rejects(() => controlService('palworld', 'delete', fakeExecFile));
   assert.equal(called, false);
 });
 
 test('controlService surfaces stderr on failure', async () => {
   const fakeExecFile = (cmd, args, cb) => {
-    cb(new Error('exit 1'), '', 'permission denied');
+    cb(new Error('exit 1'), '', 'process not found');
   };
 
   await assert.rejects(
-    () => controlService('palworld.service', 'stop', fakeExecFile),
-    /permission denied/,
+    () => controlService('palworld', 'stop', fakeExecFile),
+    /process not found/,
   );
 });
 

@@ -1,1 +1,0 @@
-palworld-bot ALL=(root) NOPASSWD: /usr/bin/systemctl start palworld.service, /usr/bin/systemctl stop palworld.service, /usr/bin/systemctl restart palworld.service
