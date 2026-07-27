@@ -1,5 +1,6 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { awaitConfirmation } = require('../confirm');
+const { successEmbed, errorEmbed } = require('../embeds');
 
 const data = new SlashCommandBuilder().setName('restart').setDescription('Restart the Palworld server process');
 const tier = 'admin';
@@ -11,9 +12,9 @@ async function execute(interaction, ctx) {
   try {
     await ctx.processControl.controlService('restart');
     ctx.auditLog.appendAuditEntry({ actor: interaction.user.tag, command: 'restart' });
-    await interaction.followUp('Server restart triggered.');
+    await interaction.followUp({ embeds: [successEmbed('Server restart triggered.')] });
   } catch (err) {
-    await interaction.followUp({ content: `Failed to restart: ${err.message}`, ephemeral: true });
+    await interaction.followUp({ embeds: [errorEmbed(`Failed to restart: ${err.message}`)], ephemeral: true });
   }
 }
 

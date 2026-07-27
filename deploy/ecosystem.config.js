@@ -14,6 +14,7 @@ module.exports = {
       cwd: '/home/morfit/palworld-bot',
       node_args: '--env-file=.env',
       autorestart: true,
+      max_memory_restart: '250M',
     },
   ],
 };

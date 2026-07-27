@@ -1,5 +1,6 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { awaitConfirmation } = require('../confirm');
+const { successEmbed, errorEmbed } = require('../embeds');
 
 const data = new SlashCommandBuilder()
   .setName('ban')
@@ -18,9 +19,9 @@ async function execute(interaction, ctx) {
   try {
     await ctx.palworld.ban(userid, reason);
     ctx.auditLog.appendAuditEntry({ actor: interaction.user.tag, command: 'ban', target: userid, reason });
-    await interaction.followUp(`Banned \`${userid}\`.`);
+    await interaction.followUp({ embeds: [successEmbed(`Banned \`${userid}\`.`)] });
   } catch (err) {
-    await interaction.followUp({ content: `Failed to ban: ${err.message}`, ephemeral: true });
+    await interaction.followUp({ embeds: [errorEmbed(`Failed to ban: ${err.message}`)], ephemeral: true });
   }
 }
 

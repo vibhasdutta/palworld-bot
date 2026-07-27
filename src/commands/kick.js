@@ -1,4 +1,5 @@
 const { SlashCommandBuilder } = require('discord.js');
+const { successEmbed, errorEmbed } = require('../embeds');
 
 const data = new SlashCommandBuilder()
   .setName('kick')
@@ -13,9 +14,9 @@ async function execute(interaction, ctx) {
   try {
     await ctx.palworld.kick(userid, reason);
     ctx.auditLog.appendAuditEntry({ actor: interaction.user.tag, command: 'kick', target: userid, reason });
-    await interaction.reply(`Kicked \`${userid}\`.`);
+    await interaction.reply({ embeds: [successEmbed(`Kicked \`${userid}\`.`)] });
   } catch (err) {
-    await interaction.reply({ content: `Failed to kick: ${err.message}`, ephemeral: true });
+    await interaction.reply({ embeds: [errorEmbed(`Failed to kick: ${err.message}`)], ephemeral: true });
   }
 }
 

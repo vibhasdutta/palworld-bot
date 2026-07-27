@@ -1,4 +1,5 @@
 const { SlashCommandBuilder } = require('discord.js');
+const { successEmbed, errorEmbed } = require('../embeds');
 
 const data = new SlashCommandBuilder()
   .setName('unban')
@@ -11,9 +12,9 @@ async function execute(interaction, ctx) {
   try {
     await ctx.palworld.unban(userid);
     ctx.auditLog.appendAuditEntry({ actor: interaction.user.tag, command: 'unban', target: userid });
-    await interaction.reply(`Unbanned \`${userid}\`.`);
+    await interaction.reply({ embeds: [successEmbed(`Unbanned \`${userid}\`.`)] });
   } catch (err) {
-    await interaction.reply({ content: `Failed to unban: ${err.message}`, ephemeral: true });
+    await interaction.reply({ embeds: [errorEmbed(`Failed to unban: ${err.message}`)], ephemeral: true });
   }
 }
 

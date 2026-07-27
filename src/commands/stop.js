@@ -1,6 +1,7 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { awaitConfirmation } = require('../confirm');
 const { PalworldApiError } = require('../palworldClient');
+const { successEmbed, errorEmbed } = require('../embeds');
 
 const data = new SlashCommandBuilder()
   .setName('stop')
@@ -23,21 +24,21 @@ async function execute(interaction, ctx) {
       await ctx.palworld.shutdown(waittime, `Server is shutting down in ${waittime} seconds.`);
     }
     ctx.auditLog.appendAuditEntry({ actor: interaction.user.tag, command: 'stop', force, waittime });
-    await interaction.followUp('Server stop triggered.');
+    await interaction.followUp({ embeds: [successEmbed('Server stop triggered.')] });
     return;
   } catch (err) {
     if (!(err instanceof PalworldApiError)) {
-      await interaction.followUp({ content: `Failed to stop: ${err.message}`, ephemeral: true });
+      await interaction.followUp({ embeds: [errorEmbed(`Failed to stop: ${err.message}`)], ephemeral: true });
       return;
     }
   }
 
   try {
     await ctx.processControl.controlService('stop');
-    ctx.auditLog.appendAuditEntry({ actor: interaction.user.tag, command: 'stop', via: 'systemctl-fallback' });
-    await interaction.followUp('Server was unreachable via REST API — stopped via systemctl instead.');
+    ctx.auditLog.appendAuditEntry({ actor: interaction.user.tag, command: 'stop', via: 'pm2-fallback' });
+    await interaction.followUp({ embeds: [successEmbed('Server was unreachable via REST API — stopped via pm2 instead.')] });
   } catch (err) {
-    await interaction.followUp({ content: `Failed to stop: ${err.message}`, ephemeral: true });
+    await interaction.followUp({ embeds: [errorEmbed(`Failed to stop: ${err.message}`)], ephemeral: true });
   }
 }
 

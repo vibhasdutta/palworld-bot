@@ -1,9 +1,10 @@
-const { Client, GatewayIntentBits, Events, REST, Routes } = require('discord.js');
+const { Client, GatewayIntentBits, Events, REST, Routes, Options } = require('discord.js');
 const { loadConfig, ensureGuildEntry, loadGuildsFile } = require('./config');
 const { resolveTier, hasAccess, findGuildRoles } = require('./permissions');
 const { createPalworldClient } = require('./palworldClient');
 const { controlService } = require('./processControl');
 const { appendAuditEntry } = require('./auditLog');
+const { errorEmbed } = require('./embeds');
 const loadCommands = require('./commands');
 
 const config = loadConfig();
@@ -24,7 +25,25 @@ const ctx = {
   },
 };
 
-const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+// ponytail: this bot only handles slash commands, never reads messages/presences/
+// reactions/voice state — zeroing those caches keeps memory flat instead of growing
+// with server activity. GuildMemberManager is zeroed too since interaction.member
+// is populated straight from the interaction payload, not from cache.
+const client = new Client({
+  intents: [GatewayIntentBits.Guilds],
+  makeCache: Options.cacheWithLimits({
+    MessageManager: 0,
+    PresenceManager: 0,
+    ReactionManager: 0,
+    ThreadManager: 0,
+    VoiceStateManager: 0,
+    GuildBanManager: 0,
+    GuildInviteManager: 0,
+    GuildEmojiManager: 0,
+    StageInstanceManager: 0,
+    GuildMemberManager: 0,
+  }),
+});
 
 async function onboardGuild(guildId, guildName) {
   const added = ensureGuildEntry(config.guildsPath, guildId);
@@ -66,7 +85,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
   const tier = resolveTier(member, guildRoles);
 
   if (!hasAccess(tier, command.tier)) {
-    await interaction.reply({ content: 'You do not have permission to use this command.', ephemeral: true });
+    await interaction.reply({ embeds: [errorEmbed('You do not have permission to use this command.')], ephemeral: true });
     return;
   }
 
@@ -74,7 +93,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     await command.execute(interaction, ctx);
   } catch (err) {
     console.error(`Error executing /${interaction.commandName}:`, err);
-    const payload = { content: `Something went wrong: ${err.message}`, ephemeral: true };
+    const payload = { embeds: [errorEmbed(`Something went wrong: ${err.message}`)], ephemeral: true };
     if (interaction.replied || interaction.deferred) {
       await interaction.followUp(payload);
     } else {

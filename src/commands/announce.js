@@ -1,4 +1,5 @@
 const { SlashCommandBuilder } = require('discord.js');
+const { successEmbed, errorEmbed } = require('../embeds');
 
 const data = new SlashCommandBuilder()
   .setName('announce')
@@ -11,9 +12,9 @@ async function execute(interaction, ctx) {
   try {
     await ctx.palworld.announce(message);
     ctx.auditLog.appendAuditEntry({ actor: interaction.user.tag, command: 'announce', message });
-    await interaction.reply(`Announced: "${message}"`);
+    await interaction.reply({ embeds: [successEmbed(`Announced: "${message}"`)] });
   } catch (err) {
-    await interaction.reply({ content: `Failed to announce: ${err.message}`, ephemeral: true });
+    await interaction.reply({ embeds: [errorEmbed(`Failed to announce: ${err.message}`)], ephemeral: true });
   }
 }
 
