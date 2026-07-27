@@ -3,14 +3,17 @@ const assert = require('node:assert/strict');
 const { SlashCommandBuilder } = require('discord.js');
 const { addUserIdOption, autocompletePlayers } = require('../src/playerOption');
 
-test('addUserIdOption adds a required, autocompleted "userid" string option', () => {
+test('addUserIdOption adds an autocompleted "userid" string option, not required at the schema level', () => {
+  // Not required in the schema (see the comment in playerOption.js) so it
+  // can be declared after the optional `server` option -- Discord requires
+  // required options to come first. Commands validate it's present themselves.
   const data = addUserIdOption(new SlashCommandBuilder().setName('kick').setDescription('x'));
   const json = data.toJSON();
 
   const useridOption = json.options.find((o) => o.name === 'userid');
   assert.ok(useridOption, 'expected a "userid" option');
   assert.equal(useridOption.autocomplete, true);
-  assert.equal(useridOption.required, true);
+  assert.equal(useridOption.required, false);
 });
 
 const completeServer = { guildId: 'G1', servers: [{ label: 'main', restApiUrl: 'x', restApiPassword: 'x', pm2ProcessName: 'palworld' }] };

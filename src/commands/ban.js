@@ -4,14 +4,21 @@ const { successEmbed, errorEmbed } = require('../embeds');
 const { addServerOption } = require('../serverOption');
 const { addUserIdOption } = require('../playerOption');
 
-const data = addServerOption(addUserIdOption(new SlashCommandBuilder()
+// Declared in server -> userid -> reason order so filling out the command in
+// Discord naturally goes "pick a server" first, then userid's autocomplete
+// filters to that server's connected players.
+const data = addUserIdOption(addServerOption(new SlashCommandBuilder()
   .setName('ban')
   .setDescription('Ban a player from the server')))
   .addStringOption((opt) => opt.setName('reason').setDescription('Reason shown to the player'));
 const tier = 'operator';
 
 async function execute(interaction, ctx) {
-  const userid = interaction.options.getString('userid', true);
+  const userid = interaction.options.getString('userid');
+  if (!userid) {
+    await interaction.reply({ embeds: [errorEmbed('Specify a player to ban (the `userid` option).')], ephemeral: true });
+    return;
+  }
   const reason = interaction.options.getString('reason') || 'Banned by an admin.';
 
   const confirmed = await awaitConfirmation(interaction, `ban:${userid}`);

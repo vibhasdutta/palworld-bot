@@ -6,11 +6,17 @@ const { createPalworldClient } = require('./palworldClient');
 // someone copy-paste a raw player ID. /unban isn't a candidate for this:
 // Palworld's REST API has no endpoint to list banned players, only
 // connected ones, so there's nothing to autocomplete against there.
+//
+// Not marked .setRequired(true): Discord requires required options to be
+// declared before optional ones, and we want the declared order to be
+// server -> userid -> reason (so admins fill server first and get that
+// server's players in the userid autocomplete), but `server` is itself
+// optional. Making userid optional too keeps the order unconstrained;
+// each command's execute() checks it's actually present instead.
 function addUserIdOption(builder) {
   return builder.addStringOption((opt) => opt
     .setName('userid')
     .setDescription('Player (start typing a name to search connected players)')
-    .setRequired(true)
     .setAutocomplete(true));
 }
 
