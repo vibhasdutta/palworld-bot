@@ -164,7 +164,7 @@ function findOwningGuilds(processName) {
 watchPm2({
   expectedActions,
   onExternalEvent: (processName, eventType) => {
-    const verb = eventType === 'online' ? 'started' : eventType;
+    const verb = { online: 'started', restart: 'restarted', stop: 'stopped' }[eventType] || eventType;
     const message = `:warning: **${processName}** was ${verb} directly via \`pm2\` (not through the bot) — check who has VM access.`;
 
     if (processName === BOT_PM2_NAME) {
