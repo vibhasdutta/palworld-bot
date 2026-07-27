@@ -132,6 +132,8 @@ All four files live in `/home/$USER/palworld-bot/config/`, are gitignored (VM-on
 
 Every command except `/operator` takes an optional `server` option (autocompleted with that guild's configured labels) — only needed when a guild has more than one server; with exactly one, it's picked automatically.
 
+`/kick` and `/ban`'s `userid` field autocompletes against that server's currently-connected players (type a name, pick from the list) instead of requiring you to paste a raw player ID. `/unban` stays free-text — Palworld's REST API has no endpoint to list banned players, only connected ones, so there's nothing to autocomplete against there.
+
 ---
 
 ## Palworld REST API

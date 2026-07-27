@@ -1,12 +1,12 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { successEmbed, errorEmbed } = require('../embeds');
 const { addServerOption } = require('../serverOption');
+const { addUserIdOption } = require('../playerOption');
 
-const data = addServerOption(new SlashCommandBuilder()
+const data = addServerOption(addUserIdOption(new SlashCommandBuilder()
   .setName('kick')
-  .setDescription('Kick a player from the server')
-  .addStringOption((opt) => opt.setName('userid').setDescription('Player ID (e.g. steam_xxxx)').setRequired(true))
-  .addStringOption((opt) => opt.setName('reason').setDescription('Reason shown to the player')));
+  .setDescription('Kick a player from the server')))
+  .addStringOption((opt) => opt.setName('reason').setDescription('Reason shown to the player'));
 const tier = 'operator';
 
 async function execute(interaction, ctx) {

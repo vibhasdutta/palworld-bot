@@ -19,6 +19,7 @@ const { appendAuditEntry } = require('./auditLog');
 const { errorEmbed } = require('./embeds');
 const { createNotifier, formatAuditEntry } = require('./notify');
 const { autocompleteServer } = require('./serverOption');
+const { autocompletePlayers } = require('./playerOption');
 const { createExpectedActions } = require('./expectedActions');
 const { watchPm2 } = require('./pm2Watcher');
 const { createPlayerPoller } = require('./playerPoller');
@@ -210,8 +211,11 @@ client.on(Events.GuildCreate, (guild) => {
 
 client.on(Events.InteractionCreate, async (interaction) => {
   if (interaction.isAutocomplete()) {
-    if (interaction.options.getFocused(true).name === 'server') {
+    const focusedName = interaction.options.getFocused(true).name;
+    if (focusedName === 'server') {
       await autocompleteServer(interaction, config).catch((err) => console.error('Autocomplete failed:', err.message));
+    } else if (focusedName === 'userid') {
+      await autocompletePlayers(interaction, config).catch((err) => console.error('Autocomplete failed:', err.message));
     }
     return;
   }
