@@ -151,11 +151,14 @@ watchConfigFiles();
 // through the bot -- Discord never sees those otherwise. expectedActions
 // filters out the bot's own pm2 calls (already reported via the normal
 // command/audit-log flow) so only genuinely-external actions get flagged.
-function findOwningGuilds(processName) {
+// Returns {guildId, label} pairs -- the friendly label (e.g. "main") from
+// that guild's own servers.json entry, not just the raw pm2 process name,
+// so the notification properly identifies which configured server it was.
+function findOwningGuildServers(processName) {
   const owners = [];
   for (const entry of config.servers) {
     for (const server of entry.servers) {
-      if (server.pm2ProcessName === processName) owners.push(entry.guildId);
+      if (server.pm2ProcessName === processName) owners.push({ guildId: entry.guildId, label: server.label });
     }
   }
   return owners;
@@ -168,13 +171,17 @@ watchPm2({
     // level (see pm2Watcher.js) -- 'restart' covers both, so say so honestly
     // rather than guessing which one it was.
     const verb = eventType === 'restart' ? 'started or restarted' : 'stopped';
-    const message = `:warning: **${processName}** was ${verb} directly via \`pm2\` (not through the bot) — check who has VM access.`;
 
     if (processName === BOT_PM2_NAME) {
+      const message = `:warning: **Bot process** (\`${processName}\`) was ${verb} directly via \`pm2\` (not through Discord) — check who has VM access.`;
       for (const entry of config.channels) notify.botLog(entry.guildId, message).catch(() => {});
       return;
     }
-    for (const guildId of findOwningGuilds(processName)) notify.serverLog(guildId, message).catch(() => {});
+
+    for (const { guildId, label } of findOwningGuildServers(processName)) {
+      const message = `:warning: **${label}** (pm2 process \`${processName}\`) was ${verb} directly via \`pm2\` (not through the bot) — check who has VM access.`;
+      notify.serverLog(guildId, message).catch(() => {});
+    }
   },
 });
 
