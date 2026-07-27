@@ -36,6 +36,7 @@ function createPalworldClient({ baseUrl, password }) {
   return {
     getInfo: () => request('GET', '/v1/api/info'),
     getPlayers: () => request('GET', '/v1/api/players'),
+    getMetrics: () => request('GET', '/v1/api/metrics'),
     announce: (message) => request('POST', '/v1/api/announce', { message }),
     kick: (userid, message) => request('POST', '/v1/api/kick', { userid, message }),
     ban: (userid, message) => request('POST', '/v1/api/ban', { userid, message }),

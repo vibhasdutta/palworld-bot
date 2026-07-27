@@ -1,17 +1,43 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { awaitConfirmation } = require('../confirm');
 const { successEmbed, errorEmbed } = require('../embeds');
+const { buildStatusEmbed } = require('../statusEmbed');
+const { PalworldApiError } = require('../palworldClient');
 
-const data = new SlashCommandBuilder().setName('restart').setDescription('Restart the Palworld server process');
+const data = new SlashCommandBuilder()
+  .setName('restart')
+  .setDescription('Restart the Palworld server process')
+  .addIntegerOption((opt) => opt.setName('waittime').setDescription('Seconds to warn players before restarting').setMinValue(0));
 const tier = 'admin';
 
 async function execute(interaction, ctx) {
-  const confirmed = await awaitConfirmation(interaction, 'restart');
+  const waittime = interaction.options.getInteger('waittime') ?? 15;
+
+  let statusEmbeds = [];
+  try {
+    statusEmbeds = [await buildStatusEmbed(ctx.palworld)];
+  } catch {
+    // server unreachable — proceed without a status preview
+  }
+
+  const confirmed = await awaitConfirmation(interaction, 'restart', { embeds: statusEmbeds });
   if (!confirmed) return;
 
   try {
+    await ctx.palworld.announce(`Server is restarting in ${waittime} seconds.`);
+    await ctx.palworld.save();
+  } catch (err) {
+    if (!(err instanceof PalworldApiError)) throw err;
+    // REST API unreachable — nothing to announce to, go straight to restart.
+  }
+
+  if (waittime > 0) {
+    await new Promise((resolve) => setTimeout(resolve, waittime * 1000));
+  }
+
+  try {
     await ctx.processControl.controlService('restart');
-    ctx.auditLog.appendAuditEntry({ actor: interaction.user.tag, command: 'restart' });
+    ctx.auditLog.appendAuditEntry({ actor: interaction.user.tag, command: 'restart', waittime });
     await interaction.followUp({ embeds: [successEmbed('Server restart triggered.')] });
   } catch (err) {
     await interaction.followUp({ embeds: [errorEmbed(`Failed to restart: ${err.message}`)], ephemeral: true });

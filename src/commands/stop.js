@@ -2,6 +2,7 @@ const { SlashCommandBuilder } = require('discord.js');
 const { awaitConfirmation } = require('../confirm');
 const { PalworldApiError } = require('../palworldClient');
 const { successEmbed, errorEmbed } = require('../embeds');
+const { buildStatusEmbed } = require('../statusEmbed');
 
 const data = new SlashCommandBuilder()
   .setName('stop')
@@ -14,7 +15,14 @@ async function execute(interaction, ctx) {
   const waittime = interaction.options.getInteger('waittime') ?? 30;
   const force = interaction.options.getBoolean('force') ?? false;
 
-  const confirmed = await awaitConfirmation(interaction, 'stop');
+  let statusEmbeds = [];
+  try {
+    statusEmbeds = [await buildStatusEmbed(ctx.palworld)];
+  } catch {
+    // server unreachable — proceed without a status preview
+  }
+
+  const confirmed = await awaitConfirmation(interaction, 'stop', { embeds: statusEmbeds });
   if (!confirmed) return;
 
   try {

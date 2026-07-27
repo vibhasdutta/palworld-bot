@@ -12,6 +12,7 @@ async function execute(interaction, ctx) {
   try {
     await ctx.palworld.unban(userid);
     ctx.auditLog.appendAuditEntry({ actor: interaction.user.tag, command: 'unban', target: userid });
+    await ctx.palworld.announce(`${userid} was unbanned.`).catch(() => {});
     await interaction.reply({ embeds: [successEmbed(`Unbanned \`${userid}\`.`)] });
   } catch (err) {
     await interaction.reply({ embeds: [errorEmbed(`Failed to unban: ${err.message}`)], ephemeral: true });

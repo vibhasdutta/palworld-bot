@@ -10,10 +10,11 @@ function buildConfirmRow(actionId) {
   return { row, confirmId, cancelId };
 }
 
-async function awaitConfirmation(interaction, actionId, timeoutMs = 15000) {
+async function awaitConfirmation(interaction, actionId, { timeoutMs = 15000, embeds = [] } = {}) {
   const { row, confirmId, cancelId } = buildConfirmRow(actionId);
   const reply = await interaction.reply({
     content: 'Are you sure? This action cannot be undone.',
+    embeds,
     components: [row],
     ephemeral: true,
     fetchReply: true,
@@ -25,10 +26,14 @@ async function awaitConfirmation(interaction, actionId, timeoutMs = 15000) {
       time: timeoutMs,
     });
     const confirmed = buttonInteraction.customId === confirmId;
-    await buttonInteraction.update({ content: confirmed ? 'Confirmed.' : 'Cancelled.', components: [] });
+    await buttonInteraction.update({ content: confirmed ? 'Confirmed.' : 'Cancelled.', embeds: [], components: [] });
     return confirmed;
-  } catch {
-    await interaction.editReply({ content: 'Confirmation timed out.', components: [] });
+  } catch (err) {
+    // Not just a timeout — anything that breaks this flow (a code error, a
+    // Discord API rejection) previously got silently reported to the user as
+    // "timed out," hiding real bugs. Log the actual cause instead.
+    console.error(`awaitConfirmation(${actionId}) did not resolve to a button click:`, err?.message || err);
+    await interaction.editReply({ content: 'Confirmation timed out or failed — check the bot logs.', embeds: [], components: [] }).catch(() => {});
     return false;
   }
 }

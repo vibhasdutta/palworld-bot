@@ -14,6 +14,7 @@ async function execute(interaction, ctx) {
   try {
     await ctx.palworld.kick(userid, reason);
     ctx.auditLog.appendAuditEntry({ actor: interaction.user.tag, command: 'kick', target: userid, reason });
+    await ctx.palworld.announce(`${userid} was kicked. Reason: ${reason}`).catch(() => {});
     await interaction.reply({ embeds: [successEmbed(`Kicked \`${userid}\`.`)] });
   } catch (err) {
     await interaction.reply({ embeds: [errorEmbed(`Failed to kick: ${err.message}`)], ephemeral: true });
