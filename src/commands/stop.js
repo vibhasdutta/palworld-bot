@@ -29,6 +29,9 @@ async function execute(interaction, ctx) {
   let restApiWorked = true;
   try {
     if (force) {
+      // /v1/api/stop has no message parameter at all -- announce separately
+      // first so players get at least some warning instead of none.
+      await ctx.palworld.announce('Server is stopping now.').catch(() => {});
       await ctx.palworld.stop();
     } else {
       await ctx.palworld.shutdown(waittime, `Server is shutting down in ${waittime} seconds.`);

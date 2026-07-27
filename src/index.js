@@ -188,21 +188,13 @@ watchPm2({
     const verb = eventType === 'restart' ? 'started or restarted' : 'stopped';
 
     if (processName === BOT_PM2_NAME) {
-      const message = {
-        title: 'External Bot Action',
-        description: `**Bot process** (\`${processName}\`) was ${verb} directly via \`pm2\` (not through Discord) — check who has VM access.`,
-        level: 'warning',
-      };
+      const message = { title: 'Bot', description: `Bot was ${verb}.`, level: 'warning' };
       for (const entry of config.channels) notify.botLog(entry.guildId, message).catch(() => {});
       return;
     }
 
     for (const { guildId, label } of findOwningGuildServers(processName)) {
-      const message = {
-        title: 'External Server Action',
-        description: `**${label}** (pm2 process \`${processName}\`) was ${verb} directly via \`pm2\` (not through the bot) — check who has VM access.`,
-        level: 'warning',
-      };
+      const message = { title: 'Server', description: `**${label}** was ${verb}.`, level: 'warning' };
       notify.serverLog(guildId, message).catch(() => {});
     }
   },
