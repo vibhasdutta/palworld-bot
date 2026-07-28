@@ -717,48 +717,57 @@ function createWebServer({ config, client, notify, auditLog }) {
       }
     }
 
-    if (changedKeys.length === 0) {
+    if (changedKeys.length === 0 && !restart) {
       return res.json({ success: true, message: 'No settings were changed.' });
     }
 
-    const success = writeWorldSettings(server.settingsFilePath, currentMap);
-    if (!success) {
-      return res.status(500).json({ success: false, error: 'Failed to write updated settings to disk.' });
+    if (changedKeys.length > 0) {
+      const success = writeWorldSettings(server.settingsFilePath, currentMap);
+      if (!success) {
+        return res.status(500).json({ success: false, error: 'Failed to write updated settings to disk.' });
+      }
+
+      // Append Audit Log
+      if (auditLog && auditLog.appendAuditEntry) {
+        auditLog.appendAuditEntry({
+          guildId,
+          actor: username,
+          actorId: userId,
+          command: 'worldsettings',
+          changes: changedKeys.length,
+          changedKeys: changedKeys.join(', '),
+        });
+      }
+
+      // Post to Server Log
+      if (notify && notify.serverLog) {
+        notify.serverLog(guildId, {
+          event: 'settings.updated',
+          level: 'warning',
+          msg: `<@${userId}> updated ${changedKeys.length} settings via web editor`,
+          actor: `${username} (${userId})`,
+          server: server.label,
+          changes: changedKeys.join(', '),
+        }).catch(() => {});
+      }
     }
 
-    // Append Audit Log
-    if (auditLog && auditLog.appendAuditEntry) {
-      auditLog.appendAuditEntry({
-        guildId,
-        actor: username,
-        actorId: userId,
-        command: 'worldsettings',
-        changes: changedKeys.length,
-        changedKeys: changedKeys.join(', '),
-      });
-    }
+    let message = changedKeys.length > 0
+      ? `Successfully saved ${changedKeys.length} setting(s)!`
+      : 'No settings were changed.';
 
-    // Post to Server Log
-    if (notify && notify.serverLog) {
-      notify.serverLog(guildId, {
-        event: 'settings.updated',
-        level: 'warning',
-        msg: `<@${userId}> updated ${changedKeys.length} settings via web editor`,
-        actor: `${username} (${userId})`,
-        server: server.label,
-        changes: changedKeys.join(', '),
-      }).catch(() => {});
-    }
-
-    let message = `Successfully saved ${changedKeys.length} setting(s)!`;
-
-    // Handle Optional Server Restart
+    // Handle Optional Server Restart / Start
     if (restart && server.pm2ProcessName) {
       try {
         await controlService(server.pm2ProcessName, 'restart');
         message += ' Server restart triggered.';
       } catch (err) {
-        message += ` Warning: failed to restart server: ${err.message}`;
+        try {
+          await controlService(server.pm2ProcessName, 'start');
+          message += ' Server was offline — start triggered.';
+        } catch (startErr) {
+          message += ` Warning: failed to restart/start server: ${startErr.message}`;
+        }
       }
     }
 
