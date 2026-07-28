@@ -157,7 +157,11 @@ async function postToChannel(client, channelId, entry) {
   if (!channelId) return;
   try {
     const channel = await client.channels.fetch(channelId);
-    const content = typeof entry === 'string' ? entry : formatStructuredLog(entry);
+    let content = typeof entry === 'string' ? entry : formatStructuredLog(entry);
+    if (content.length > 2000) {
+      const inCodeblock = content.endsWith('```');
+      content = content.slice(0, 1980) + (inCodeblock ? '\n...\n```' : '...');
+    }
     await channel.send({ content });
   } catch (err) {
     console.error(`Failed to post to channel ${channelId}:`, err.message);
