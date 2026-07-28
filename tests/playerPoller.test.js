@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createPlayerPoller, playerKey } = require('../src/playerPoller');
+const { createPlayerPoller, playerKey, cleanPlayerId } = require('../src/playerPoller');
 
 function fakeNotify() {
   const messages = [];
@@ -13,6 +13,13 @@ function fakeNotify() {
 function clientReturning(players) {
   return () => ({ getPlayers: async () => ({ players }) });
 }
+
+test('cleanPlayerId trims 32-char hex Player IDs ending with 24 zeros down to 8 hex chars', () => {
+  assert.equal(cleanPlayerId('78518843000000000000000000000000'), '78518843');
+  assert.equal(cleanPlayerId('5338B2AD000000000000000000000000'), '5338B2AD');
+  assert.equal(cleanPlayerId('u1'), 'u1');
+  assert.equal(cleanPlayerId('None'), 'None');
+});
 
 test('playerKey ignores invalid IDs like None or 0 and falls back to accountName/name', () => {
   assert.equal(playerKey({ playerId: 'None', userId: 'None', accountName: 'Campione', name: 'Campione' }), 'Campione');

@@ -18,8 +18,17 @@ function playerKey(player) {
   return pId || uId || acc || name || 'unknown';
 }
 
+function cleanPlayerId(id) {
+  if (!id || typeof id !== 'string') return id;
+  const str = id.trim();
+  if (/^[0-9a-fA-F]{32}$/.test(str) && str.endsWith('000000000000000000000000')) {
+    return str.slice(0, 8);
+  }
+  return str;
+}
+
 function getDisplayPlayerId(player) {
-  if (isValidId(player.playerId)) return player.playerId;
+  if (isValidId(player.playerId)) return cleanPlayerId(player.playerId);
   if (isValidId(player.userId)) return player.userId;
   if (player.accountName && player.accountName !== '') return player.accountName;
   if (player.name && player.name !== '') return player.name;
@@ -134,4 +143,4 @@ function createPlayerPoller({ getServers, createClient, notify, intervalMs = 200
   return { start, pollOnce };
 }
 
-module.exports = { createPlayerPoller, playerKey };
+module.exports = { createPlayerPoller, playerKey, cleanPlayerId };
