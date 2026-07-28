@@ -613,6 +613,14 @@ document.getElementById('btnSave').addEventListener('click', () => save(false));
 </html>
 `;
 
+function renderErrorPage(title, message) {
+  return ERROR_TEMPLATE(title, message);
+}
+
+function renderSettingsPage({ settings, schema, categories, user, serverLabel, serverName }) {
+  return HTML_TEMPLATE(user, serverName, serverLabel, settings, schema, categories);
+}
+
 function normalizeSettingValue(key, val) {
   if (val === undefined || val === null) return '';
   const str = String(val).trim();
