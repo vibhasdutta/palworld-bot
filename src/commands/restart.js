@@ -12,7 +12,7 @@ const data = addServerOption(new SlashCommandBuilder()
 const tier = 'admin';
 
 async function execute(interaction, ctx) {
-  const waittime = interaction.options.getInteger('waittime') ?? 15;
+  const waittime = interaction.options.getInteger('waittime') ?? 5;
 
   let statusEmbeds = [];
   try {
