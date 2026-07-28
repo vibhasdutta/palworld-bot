@@ -796,6 +796,7 @@ function createWebServer({ config, client, notify, auditLog }) {
       }
       if (String(oldVal) !== String(val)) {
         changedKeys.push(key);
+        let formattedVal;
         const schemaItem = SETTINGS_SCHEMA.find(s => s.key === key);
         if (schemaItem && schemaItem.type === 'range' && val !== '' && val !== undefined && !isNaN(val)) {
           formattedVal = Number(val).toFixed(6);
