@@ -5,7 +5,7 @@ module.exports = {
       script: '/home/morfit/palworld/PalServer.sh',
       interpreter: 'bash',
       cwd: '/home/morfit/palworld',
-      autorestart: true,
+      autorestart: false,
       max_restarts: 10,
     },
     {

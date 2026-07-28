@@ -882,7 +882,7 @@ function createWebServer({ config, client, notify, auditLog }) {
       // Stop the server first so PalServer finishes its shutdown flush before we write new settings to disk
       try {
         await controlService(server.pm2ProcessName, 'stop');
-        await new Promise((resolve) => setTimeout(resolve, 2000));
+        await new Promise((resolve) => setTimeout(resolve, 3000));
       } catch {
         // Server was likely offline -- ignore stop failure
       }
