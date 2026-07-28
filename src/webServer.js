@@ -404,9 +404,12 @@ const HTML_TEMPLATE = (user, serverName, serverLabel, settings, schema, categori
       SCHEMA.forEach(field => {
         const el = document.getElementById('input-' + field.key);
         if (!el) return;
-        const val = settingsObj[field.key];
+        let val = settingsObj[field.key];
+        if (val !== undefined && typeof val === 'string' && val.startsWith('"') && val.endsWith('"') && val.length >= 2) {
+          val = val.slice(1, -1);
+        }
         if (field.type === 'boolean') {
-          el.checked = (val === true || val === 'True');
+          el.checked = (val === true || val === 'True' || val === 'true');
         } else {
           el.value = val !== undefined ? val : '';
         }
@@ -420,6 +423,9 @@ const HTML_TEMPLATE = (user, serverName, serverLabel, settings, schema, categori
         }
       });
     }
+
+    // Populate all input values directly via JS DOM properties on initial load
+    updateFormFromSettings(currentSettings);
 
     SCHEMA.forEach(field => {
       const el = document.getElementById('input-' + field.key);
