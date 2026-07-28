@@ -38,13 +38,7 @@ async function execute(interaction, ctx) {
   });
 
   await interaction.reply({
-    ...successEmbed('World settings editor link generated.', {
-      command: 'worldsettings',
-      event: 'settings.editor_opened',
-      server: server.label,
-      actor: `${interaction.user.tag} (${interaction.user.id})`,
-    }),
-    content: `🔧 **World Settings Editor**\n\nClick the link below to open the settings editor. You'll be asked to log in with Discord to verify your identity.\n\n🔗 **[Open Settings Editor](${loginUrl})**\n\n> *Session lasts 30 minutes. Only admins can access this page.*`,
+    content: `🔧 **World Settings Editor**\n🔗 **[Open Settings Editor](<${loginUrl}>)**\n> *Admin only • Session lasts 30 minutes*`,
     ephemeral: true,
   });
 }
