@@ -98,8 +98,10 @@ function levelColor(level) {
     case 'ERROR':
       return ANSI.red;
     case 'WARN':
+    case 'LEAVE':
       return ANSI.yellow;
     case 'SUCCESS':
+    case 'JOIN':
       return ANSI.green;
     case 'INFO':
     default:
@@ -117,6 +119,8 @@ function formatStructuredLog(entry) {
     warn: 'WARN',
     danger: 'ERROR',
     error: 'ERROR',
+    join: 'JOIN',
+    leave: 'LEAVE',
   };
   const level = levelMap[rawLevel] || 'INFO';
 

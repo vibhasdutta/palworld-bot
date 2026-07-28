@@ -38,12 +38,12 @@ function createPlayerPoller({ getServers, createClient, notify, intervalMs = 200
         for (const [id, name] of current) {
           if (!previous.has(id)) {
             notify.serverLog(server.guildId, {
-              event: 'player.connect',
+              event: 'player.join',
               server: server.label,
               player: name,
               playerId: id,
               status: 'joined',
-              level: 'success',
+              level: 'join',
               msg: `${name} joined ${server.label}`,
             }).catch(() => {});
           }
@@ -51,12 +51,12 @@ function createPlayerPoller({ getServers, createClient, notify, intervalMs = 200
         for (const [id, name] of previous) {
           if (!current.has(id)) {
             notify.serverLog(server.guildId, {
-              event: 'player.disconnect',
+              event: 'player.leave',
               server: server.label,
               player: name,
               playerId: id,
               status: 'left',
-              level: 'warning',
+              level: 'leave',
               msg: `${name} left ${server.label}`,
             }).catch(() => {});
           }

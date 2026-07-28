@@ -50,12 +50,12 @@ test('a new player on the second poll is reported as joined', async () => {
     {
       guildId: 'G1',
       content: {
-        event: 'player.connect',
+        event: 'player.join',
         server: 'main',
         player: 'Bob',
         playerId: 'u2',
         status: 'joined',
-        level: 'success',
+        level: 'join',
         msg: 'Bob joined main',
       },
     },
@@ -79,12 +79,12 @@ test('a player missing on the second poll is reported as left', async () => {
     {
       guildId: 'G1',
       content: {
-        event: 'player.disconnect',
+        event: 'player.leave',
         server: 'main',
         player: 'Bob',
         playerId: 'u2',
         status: 'left',
-        level: 'warning',
+        level: 'leave',
         msg: 'Bob left main',
       },
     },
