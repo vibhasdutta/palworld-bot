@@ -257,6 +257,22 @@ const HTML_TEMPLATE = (user, serverName, serverLabel, settings, schema, categori
     }
     input:focus, select:focus { border-color: var(--accent); }
 
+    .password-wrapper { position: relative; width: 100%; display: flex; align-items: center; }
+    .password-wrapper input { width: 100%; padding-right: 2.5rem; }
+    .toggle-password-btn {
+      position: absolute;
+      right: 0.5rem;
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 1rem;
+      padding: 0.2rem 0.4rem;
+      border-radius: 0.25rem;
+      transition: background 0.2s, color 0.2s;
+    }
+    .toggle-password-btn:hover { color: var(--text-main); background-color: rgba(255, 255, 255, 0.1); }
+
     .toggle-switch { position: relative; display: inline-block; width: 44px; height: 22px; }
     .toggle-switch input { opacity: 0; width: 0; height: 0; }
     .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #334155; transition: .2s; border-radius: 22px; }
@@ -346,6 +362,18 @@ const HTML_TEMPLATE = (user, serverName, serverLabel, settings, schema, categori
   <div class="toast-container" id="toastContainer"></div>
 
   <script>
+    function togglePasswordVisibility(inputId, btn) {
+      const input = document.getElementById(inputId);
+      if (!input) return;
+      if (input.type === 'password') {
+        input.type = 'text';
+        btn.textContent = '🙈';
+      } else {
+        input.type = 'password';
+        btn.textContent = '👁️';
+      }
+    }
+
     const INITIAL_SETTINGS = ${JSON.stringify(settings)};
     const SCHEMA = ${JSON.stringify(schema)};
     const CATEGORIES = ${JSON.stringify(categories)};
@@ -409,7 +437,7 @@ const HTML_TEMPLATE = (user, serverName, serverLabel, settings, schema, categori
           const minAttr = field.min !== undefined ? 'min="' + field.min + '"' : '';
           inputHtml = '<label class="setting-label" for="input-' + field.key + '">' + (field.label || field.key) + '</label>' + (field.description ? '<div class="setting-desc">' + field.description + '</div>' : '') + '<input type="number" id="input-' + field.key + '" value="' + (val !== undefined ? String(val).replace(/"/g, '&quot;') : '') + '" ' + stepAttr + ' ' + minAttr + '>';
         } else if (field.type === 'password') {
-          inputHtml = '<label class="setting-label" for="input-' + field.key + '">' + (field.label || field.key) + '</label>' + (field.description ? '<div class="setting-desc">' + field.description + '</div>' : '') + '<input type="password" id="input-' + field.key + '" value="' + (val !== undefined ? String(val).replace(/"/g, '&quot;') : '') + '">';
+          inputHtml = '<label class="setting-label" for="input-' + field.key + '">' + (field.label || field.key) + '</label>' + (field.description ? '<div class="setting-desc">' + field.description + '</div>' : '') + '<div class="password-wrapper"><input type="password" id="input-' + field.key + '" value="' + (val !== undefined ? String(val).replace(/"/g, '&quot;') : '') + '"><button type="button" class="toggle-password-btn" title="Toggle password visibility" onclick="togglePasswordVisibility(\'input-' + field.key + '\', this)">👁️</button></div>';
         } else {
           inputHtml = '<label class="setting-label" for="input-' + field.key + '">' + (field.label || field.key) + '</label>' + (field.description ? '<div class="setting-desc">' + field.description + '</div>' : '') + '<input type="text" id="input-' + field.key + '" value="' + (val !== undefined ? String(val).replace(/"/g, '&quot;') : '') + '">';
         }
