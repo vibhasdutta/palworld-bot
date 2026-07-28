@@ -33,9 +33,12 @@ async function autocompletePlayers(interaction, config, createClient = createPal
     const client = createClient({ baseUrl: server.restApiUrl, password: server.restApiPassword });
     const { players = [] } = await client.getPlayers();
     const choices = players
-      .filter((p) => p.name.toLowerCase().includes(focused))
+      .filter((p) => (p.name || '').toLowerCase().includes(focused))
       .slice(0, 25)
-      .map((p) => ({ name: p.name, value: p.userId || p.accountName || p.name }));
+      .map((p) => {
+        const id = p.playerId || p.userId || p.accountName || p.name;
+        return { name: p.name ? `${p.name} (${id})` : id, value: id };
+      });
     await interaction.respond(choices);
   } catch {
     // server unreachable mid-typing -- just show no choices, don't error the autocomplete

@@ -5,7 +5,7 @@
 // list can't tell those apart, so the message stays honest about that
 // (just "left") instead of guessing.
 function playerKey(player) {
-  return player.userId || player.accountName || player.name;
+  return player.playerId || player.userId || player.accountName || player.name;
 }
 
 function createPlayerPoller({ getServers, createClient, notify, intervalMs = 20000 }) {

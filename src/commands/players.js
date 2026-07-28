@@ -14,7 +14,7 @@ async function execute(interaction, ctx) {
       return;
     }
 
-    const listStr = players.map((p, i) => `${i + 1}. player="${p.name}" id=${p.userId ?? p.accountName ?? 'unknown'}`).join('\n');
+    const listStr = players.map((p, i) => `${i + 1}. player="${p.name}" id=${p.playerId ?? p.userId ?? p.accountName ?? 'unknown'}`).join('\n');
     const logHeader = formatStructuredLog({ event: 'player.list', count: players.length, level: 'success', description: 'Connected players' });
     // Strip trailing ``` and append list cleanly inside codeblock
     const codeContent = logHeader.replace(/\n```$/, `\n${listStr}\n\`\`\``);

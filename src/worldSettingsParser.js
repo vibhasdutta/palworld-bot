@@ -77,6 +77,8 @@ function serializeOptionSettings(settingsMap) {
   return `[/Script/Pal.PalGameWorldSettings]\nOptionSettings=(${settingsString})\n`;
 }
 
+const path = require('path');
+
 function readWorldSettings(settingsFilePath, readFileSync = fs.readFileSync) {
   try {
     const content = readFileSync(settingsFilePath, 'utf8');
@@ -86,17 +88,31 @@ function readWorldSettings(settingsFilePath, readFileSync = fs.readFileSync) {
     };
   } catch (error) {
     if (error.code === 'ENOENT') {
-      return {
-        settings: new Map(),
-        exists: false
-      };
+      try {
+        const defaultPath = path.resolve(path.dirname(settingsFilePath), '../../../../DefaultPalWorldSettings.ini');
+        const defaultContent = readFileSync(defaultPath, 'utf8');
+        return {
+          settings: parseOptionSettings(defaultContent),
+          exists: true,
+          isDefaultFallback: true
+        };
+      } catch {
+        return {
+          settings: new Map(),
+          exists: false
+        };
+      }
     }
     throw error;
   }
 }
 
-function writeWorldSettings(settingsFilePath, settingsMap, writeFileSync = fs.writeFileSync) {
+function writeWorldSettings(settingsFilePath, settingsMap, writeFileSync = fs.writeFileSync, mkdirSync = fs.mkdirSync) {
   try {
+    const dir = path.dirname(settingsFilePath);
+    if (mkdirSync && dir) {
+      mkdirSync(dir, { recursive: true });
+    }
     const content = serializeOptionSettings(settingsMap);
     writeFileSync(settingsFilePath, content, 'utf8');
     return true;

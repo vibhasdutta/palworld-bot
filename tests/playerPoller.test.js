@@ -14,7 +14,8 @@ function clientReturning(players) {
   return () => ({ getPlayers: async () => ({ players }) });
 }
 
-test('playerKey prefers userId, then accountName, then name', () => {
+test('playerKey prefers playerId, then userId, then accountName, then name', () => {
+  assert.equal(playerKey({ playerId: 'p1', userId: 'u1', accountName: 'a1', name: 'n1' }), 'p1');
   assert.equal(playerKey({ userId: 'u1', accountName: 'a1', name: 'n1' }), 'u1');
   assert.equal(playerKey({ accountName: 'a1', name: 'n1' }), 'a1');
   assert.equal(playerKey({ name: 'n1' }), 'n1');

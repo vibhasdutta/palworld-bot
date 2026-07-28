@@ -53,8 +53,8 @@ test('autocompletePlayers filters the resolved server\'s live players by the typ
   await autocompletePlayers(interaction, config, fakeClient);
 
   assert.deepEqual(responded, [
-    { name: 'Alice', value: 'u1' },
-    { name: 'Alison', value: 'u3' },
+    { name: 'Alice (u1)', value: 'u1' },
+    { name: 'Alison (u3)', value: 'u3' },
   ]);
 });
 
