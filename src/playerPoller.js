@@ -56,7 +56,7 @@ function createPlayerPoller({ getServers, createClient, notify, intervalMs = 200
               player: name,
               playerId: id,
               status: 'left',
-              level: 'danger',
+              level: 'warning',
               msg: `${name} left ${server.label}`,
             }).catch(() => {});
           }

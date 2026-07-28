@@ -84,7 +84,7 @@ test('a player missing on the second poll is reported as left', async () => {
         player: 'Bob',
         playerId: 'u2',
         status: 'left',
-        level: 'danger',
+        level: 'warning',
         msg: 'Bob left main',
       },
     },
