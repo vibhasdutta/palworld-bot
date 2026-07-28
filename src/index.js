@@ -286,7 +286,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       actorId: interaction.user.id,
       tier: command.tier,
       level: 'warning',
-      msg: `<@${interaction.user.id}> (${interaction.user.tag} - Discord ID: \`${interaction.user.id}\`) was denied /${interaction.commandName} (no ${command.tier} access)`,
+      msg: `**${interaction.user.tag}** (Discord ID: \`${interaction.user.id}\`) was denied /${interaction.commandName} (no ${command.tier} access)`,
     }).catch(() => {});
     return;
   }
@@ -319,7 +319,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       actorId: interaction.user.id,
       error: err.message,
       level: 'danger',
-      msg: `Error executing /${interaction.commandName} for <@${interaction.user.id}> (${interaction.user.tag} - Discord ID: \`${interaction.user.id}\`): ${err.message}`,
+      msg: `Error executing /${interaction.commandName} for **${interaction.user.tag}** (Discord ID: \`${interaction.user.id}\`): ${err.message}`,
     }).catch(() => {});
   }
 });

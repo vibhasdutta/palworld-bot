@@ -22,7 +22,7 @@ function actorLabel(entry) {
 }
 
 function actorMention(entry) {
-  return entry.actorId ? `<@${entry.actorId}> (${entry.actor || 'User'} - ID: \`${entry.actorId}\`)` : `**${entry.actor}**`;
+  return entry.actorId ? `**${entry.actor || 'User'}** (Discord ID: \`${entry.actorId}\`)` : `**${entry.actor}**`;
 }
 
 function formatAuditEntry(entry) {

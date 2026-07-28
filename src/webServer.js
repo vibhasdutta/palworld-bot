@@ -867,7 +867,7 @@ function createWebServer({ config, client, notify, auditLog }) {
         notify.serverLog(guildId, {
           event: 'settings.updated',
           level: 'warning',
-          msg: `<@${userId}> (${username} - Discord ID: \`${userId}\`) updated ${changedKeys.length} setting(s) via web editor`,
+          msg: `**${username}** (Discord ID: \`${userId}\`) updated ${changedKeys.length} setting(s) via web editor`,
           diff: diffContent,
           actor: `${username} (${userId})`,
           actorId: userId,

@@ -42,7 +42,7 @@ test('formatStructuredLog defaults to INFO when no level is given', () => {
 
 test('formatAuditEntry uses a real @mention in description and formats structured actor name', () => {
   const entry = formatAuditEntry({ actor: 'alice', actorId: '12345', command: 'kick', target: 'steam_1', reason: 'AFK' });
-  assert.equal(entry.description, '<@12345> (alice - ID: `12345`) kicked `steam_1` (Player ID: `steam_1`) — AFK');
+  assert.equal(entry.description, '**alice** (Discord ID: `12345`) kicked `steam_1` (Player ID: `steam_1`) — AFK');
   assert.equal(entry.actor, 'alice (Discord ID: 12345)');
   assert.equal(entry.event, 'discord.audit.kick');
   assert.equal(entry.level, 'danger');
