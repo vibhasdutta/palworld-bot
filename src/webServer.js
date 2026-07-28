@@ -422,10 +422,41 @@ const HTML_TEMPLATE = (user, serverName, serverLabel, settings, schema, categori
       catIndex++;
     }
     
+    const OFFICIAL_DEFAULTS = {
+      DayTimeSpeedRate: 1.0, NightTimeSpeedRate: 1.0, ExpRate: 1.0, PalCaptureRate: 1.0, PalSpawnNumRate: 1.0,
+      PalDamageRateAttack: 1.0, PalDamageRateDefense: 1.0, PlayerDamageRateAttack: 1.0, PlayerDamageRateDefense: 1.0,
+      PlayerStomachDecreaceRate: 1.0, PlayerStaminaDecreaceRate: 1.0, PlayerAutoHPRegeneRate: 1.0, PlayerAutoHpRegeneRateInSleep: 1.0,
+      PalStomachDecreaceRate: 1.0, PalStaminaDecreaceRate: 1.0, PalAutoHPRegeneRate: 1.0, PalAutoHpRegeneRateInSleep: 1.0,
+      BuildObjectHpRate: 1.0, BuildObjectDamageRate: 1.0, BuildObjectDeteriorationDamageRate: 1.0,
+      CollectionDropRate: 1.0, CollectionObjectHpRate: 1.0, CollectionObjectRespawnSpeedRate: 1.0,
+      EnemyDropItemRate: 1.0, DeathPenalty: 'Item', bEnablePlayerToPlayerDamage: false, bEnableFriendlyFire: false,
+      bEnableInvaderEnemy: true, bActiveUNKO: false, bEnableAimAssistPad: true, bEnableAimAssistKeyboard: false,
+      DropItemMaxNum: 3000, PhysicsActiveDropItemMaxNum: -1, DropItemMaxNum_UNKO: 100, BaseCampMaxNum: 128,
+      BaseCampWorkerMaxNum: 15, DropItemAliveMaxHours: 1.0, bAutoResetGuildNoOnlinePlayers: false,
+      AutoResetGuildTimeNoOnlinePlayers: 72.0, GuildPlayerMaxNum: 20, BaseCampMaxNumInGuild: 4,
+      PalEggDefaultHatchingTime: 1.0, WorkSpeedRate: 1.0, AutoSaveSpan: 30.0, bIsMultiplay: false, bIsPvP: false,
+      bHardcore: false, bPalLost: false, bCharacterRecreateInHardcore: false, bCanPickupOtherGuildDeathPenaltyDrop: false,
+      bEnableNonLoginPenalty: true, bEnableFastTravel: true, bEnableFastTravelOnlyBaseCamp: false,
+      bIsStartLocationSelectByMap: false, bExistPlayerAfterLogout: false, bEnableDefenseOtherGuildPlayer: false,
+      bInvisibleOtherGuildBaseCampAreaFX: false, bBuildAreaLimit: false, ItemWeightRate: 1.0,
+      EquipmentDurabilityDamageRate: 1.0, ItemContainerForceMarkDirtyInterval: 1.0,
+      PlayerDataPalStorageUpdateCheckTickInterval: 1.0, ItemCorruptionMultiplier: 1.0,
+      MonsterFarmActionSpeedRate: 1.0, GuildRejoinCooldownMinutes: 0, AutoTransferMasterCheckIntervalSeconds: 3600.0,
+      AutoTransferMasterThresholdDays: 14, MaxGuildsPerFrame: 10, BlockRespawnTime: 5.0,
+      RespawnPenaltyDurationThreshold: 0.0, RespawnPenaltyTimeScale: 2.0, bDisplayPvPItemNumOnWorldMap_BaseCamp: false,
+      bDisplayPvPItemNumOnWorldMap_Player: false, AdditionalDropItemNumWhenPlayerKillingInPvPMode: 1,
+      bAdditionalDropItemWhenPlayerKillingInPvPMode: false, bEnableVoiceChat: false,
+      VoiceChatMaxVolumeDistance: 3000.0, VoiceChatZeroVolumeDistance: 15000.0,
+      bAllowEnhanceStat_Health: true, bAllowEnhanceStat_Attack: true, bAllowEnhanceStat_Stamina: true,
+      bAllowEnhanceStat_Weight: true, bAllowEnhanceStat_WorkSpeed: true, bEnableBuildingPlayerUIdDisplay: false,
+      BuildingNameDisplayCacheTTLSeconds: 60, bAllowGlobalPalboxExport: true, bAllowGlobalPalboxImport: false
+    };
+
     const PRESETS = {
-      Easy: { ExpRate: 1.3, PalCaptureRate: 1.3, PalDamageRateAttack: 1.0, PalDamageRateDefense: 0.8, PlayerDamageRateAttack: 1.5, PlayerDamageRateDefense: 0.7, PlayerStomachDecreaceRate: 0.7, PlayerStaminaDecreaceRate: 0.7, PalStomachDecreaceRate: 0.7, PalStaminaDecreaceRate: 0.7, CollectionDropRate: 1.3, EnemyDropItemRate: 1.3, DeathPenalty: 'None', PalEggDefaultHatchingTime: 0.0 },
-      Normal: { ExpRate: 1.0, PalCaptureRate: 1.0, PalDamageRateAttack: 1.0, PalDamageRateDefense: 1.0, PlayerDamageRateAttack: 1.0, PlayerDamageRateDefense: 1.0, PlayerStomachDecreaceRate: 1.0, PlayerStaminaDecreaceRate: 1.0, PalStomachDecreaceRate: 1.0, PalStaminaDecreaceRate: 1.0, CollectionDropRate: 1.0, EnemyDropItemRate: 1.0, DeathPenalty: 'Item', PalEggDefaultHatchingTime: 2.0 },
-      Hard: { ExpRate: 0.8, PalCaptureRate: 0.8, PalDamageRateAttack: 1.5, PalDamageRateDefense: 1.5, PlayerDamageRateAttack: 0.5, PlayerDamageRateDefense: 4.0, PlayerStomachDecreaceRate: 1.5, PlayerStaminaDecreaceRate: 1.5, PalStomachDecreaceRate: 1.5, PalStaminaDecreaceRate: 1.5, CollectionDropRate: 0.5, EnemyDropItemRate: 0.5, DeathPenalty: 'All', PalEggDefaultHatchingTime: 72.0 }
+      None: OFFICIAL_DEFAULTS,
+      Easy: { ...OFFICIAL_DEFAULTS, ExpRate: 1.3, PalCaptureRate: 1.3, PalDamageRateAttack: 1.0, PalDamageRateDefense: 0.8, PlayerDamageRateAttack: 1.5, PlayerDamageRateDefense: 0.7, PlayerStomachDecreaceRate: 0.7, PlayerStaminaDecreaceRate: 0.7, PalStomachDecreaceRate: 0.7, PalStaminaDecreaceRate: 0.7, CollectionDropRate: 1.3, EnemyDropItemRate: 1.3, DeathPenalty: 'None', PalEggDefaultHatchingTime: 0.0 },
+      Normal: { ...OFFICIAL_DEFAULTS, ExpRate: 1.0, PalCaptureRate: 1.0, PalDamageRateAttack: 1.0, PalDamageRateDefense: 1.0, PlayerDamageRateAttack: 1.0, PlayerDamageRateDefense: 1.0, PlayerStomachDecreaceRate: 1.0, PlayerStaminaDecreaceRate: 1.0, PalStomachDecreaceRate: 1.0, PalStaminaDecreaceRate: 1.0, CollectionDropRate: 1.0, EnemyDropItemRate: 1.0, DeathPenalty: 'Item', PalEggDefaultHatchingTime: 1.0 },
+      Hard: { ...OFFICIAL_DEFAULTS, ExpRate: 0.8, PalCaptureRate: 0.8, PalDamageRateAttack: 1.5, PalDamageRateDefense: 1.5, PlayerDamageRateAttack: 0.5, PlayerDamageRateDefense: 4.0, PlayerStomachDecreaceRate: 1.5, PlayerStaminaDecreaceRate: 1.5, PalStomachDecreaceRate: 1.5, PalStaminaDecreaceRate: 1.5, CollectionDropRate: 0.5, EnemyDropItemRate: 0.5, DeathPenalty: 'All', PalEggDefaultHatchingTime: 72.0 }
     };
 
     function updateFormFromSettings(settingsObj) {
