@@ -837,7 +837,7 @@ function createWebServer({ config, client, notify, auditLog }) {
         return res.status(500).json({ success: false, error: 'Failed to write updated settings to disk.' });
       }
 
-      const diffLines = changedDetails.map(c => `-\t${c.key}: ${c.oldVal}\n+\t${c.key}: ${c.newVal}`).join('\n');
+      const diffLines = changedDetails.map(c => `- ${c.key}: ${c.oldVal}\n+ ${c.key}: ${c.newVal}`).join('\n');
       const diffContent = `\`\`\`diff\n${diffLines}\n\`\`\``;
 
       // Append Audit Log
@@ -857,7 +857,8 @@ function createWebServer({ config, client, notify, auditLog }) {
         notify.serverLog(guildId, {
           event: 'settings.updated',
           level: 'warning',
-          msg: `<@${userId}> (${username} - Discord ID: \`${userId}\`) updated ${changedKeys.length} setting(s) via web editor:\n${diffContent}`,
+          msg: `<@${userId}> (${username} - Discord ID: \`${userId}\`) updated ${changedKeys.length} setting(s) via web editor`,
+          diff: diffContent,
           actor: `${username} (${userId})`,
           actorId: userId,
           server: server.label,

@@ -24,7 +24,7 @@ const SETTINGS_SCHEMA = [
   // Time
   { key: 'DayTimeSpeedRate', label: 'Day Time Speed Rate', category: 'time', type: 'range', min: 0.1, max: 5.0, step: 0.1, description: 'Speed multiplier for day time (In-game max: 5.0)' },
   { key: 'NightTimeSpeedRate', label: 'Night Time Speed Rate', category: 'time', type: 'range', min: 0.1, max: 5.0, step: 0.1, description: 'Speed multiplier for night time (In-game max: 5.0)' },
-  { key: 'AutoSaveSpan', label: 'Auto Save Span', category: 'time', type: 'number', step: 1, min: 0, description: 'Interval between auto saves in minutes' },
+  { key: 'AutoSaveSpan', label: 'Auto Save Span', category: 'time', type: 'number', step: 1, min: 0, description: 'Interval between auto saves in seconds' },
   { key: 'PalEggDefaultHatchingTime', label: 'Egg Hatching Time (Hours)', category: 'time', type: 'range', min: 0.0, max: 72.0, step: 1.0, description: 'Time required to hatch massive eggs in hours (In-game max: 72.0)' },
 
   // Combat

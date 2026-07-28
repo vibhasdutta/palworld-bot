@@ -139,7 +139,7 @@ function formatStructuredLog(entry) {
     fields.push(`${ANSI.cyan}msg=${ANSI.reset}${ANSI.white}${formatLogfmtValue(entry.description)}${ANSI.reset}`);
   }
 
-  const reserved = new Set(['timestamp', 'level', 'event', 'title', 'description']);
+  const reserved = new Set(['timestamp', 'level', 'event', 'title', 'description', 'diff']);
 
   for (const [k, v] of Object.entries(entry)) {
     if (reserved.has(k) || v === undefined || v === null || v === '') continue;
@@ -147,7 +147,8 @@ function formatStructuredLog(entry) {
   }
 
   const logLine = `${timeStr} ${levelStr} ${fields.join(' ')}`;
-  return `\`\`\`ansi\n${logLine}\n\`\`\``;
+  const ansiBlock = `\`\`\`ansi\n${logLine}\n\`\`\``;
+  return entry.diff ? `${ansiBlock}\n${entry.diff}` : ansiBlock;
 }
 
 function buildLogEmbed(entry) {
