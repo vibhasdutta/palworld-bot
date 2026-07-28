@@ -271,6 +271,8 @@ const HTML_TEMPLATE = (user, serverName, serverLabel, settings, schema, categori
     .btn-primary:hover { background: #16a34a; }
     .btn-warning { background: var(--warning); color: white; }
     .btn-warning:hover { background: #d97706; }
+    .btn-secondary { background: #475569; color: white; }
+    .btn-secondary:hover { background: #334155; }
     .btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
     .toast-container { position: fixed; top: 80px; right: 20px; z-index: 1000; display: flex; flex-direction: column; gap: 0.5rem; }
@@ -315,6 +317,7 @@ const HTML_TEMPLATE = (user, serverName, serverLabel, settings, schema, categori
   </div>
 
   <div class="footer">
+    <button class="btn btn-secondary" id="btnReset">Reset Changes</button>
     <button class="btn btn-primary" id="btnSave">Save Settings <div class="spinner"></div></button>
     <button class="btn btn-warning" id="btnSaveRestart">Save & Restart Server <div class="spinner"></div></button>
   </div>
@@ -385,6 +388,33 @@ const HTML_TEMPLATE = (user, serverName, serverLabel, settings, schema, categori
       catIndex++;
     }
     
+    const PRESETS = {
+      Easy: { ExpRate: 1.3, PalCaptureRate: 1.3, PalDamageRateAttack: 1.0, PalDamageRateDefense: 0.8, PlayerDamageRateAttack: 1.5, PlayerDamageRateDefense: 0.7, PlayerStomachDecreaceRate: 0.7, PlayerStaminaDecreaceRate: 0.7, PalStomachDecreaceRate: 0.7, PalStaminaDecreaceRate: 0.7, CollectionDropRate: 1.3, EnemyDropItemRate: 1.3, DeathPenalty: 'None', PalEggDefaultHatchingTime: 0.0 },
+      Normal: { ExpRate: 1.0, PalCaptureRate: 1.0, PalDamageRateAttack: 1.0, PalDamageRateDefense: 1.0, PlayerDamageRateAttack: 1.0, PlayerDamageRateDefense: 1.0, PlayerStomachDecreaceRate: 1.0, PlayerStaminaDecreaceRate: 1.0, PalStomachDecreaceRate: 1.0, PalStaminaDecreaceRate: 1.0, CollectionDropRate: 1.0, EnemyDropItemRate: 1.0, DeathPenalty: 'Item', PalEggDefaultHatchingTime: 2.0 },
+      Hard: { ExpRate: 0.8, PalCaptureRate: 0.8, PalDamageRateAttack: 1.5, PalDamageRateDefense: 1.5, PlayerDamageRateAttack: 0.5, PlayerDamageRateDefense: 4.0, PlayerStomachDecreaceRate: 1.5, PlayerStaminaDecreaceRate: 1.5, PalStomachDecreaceRate: 1.5, PalStaminaDecreaceRate: 1.5, CollectionDropRate: 0.5, EnemyDropItemRate: 0.5, DeathPenalty: 'All', PalEggDefaultHatchingTime: 72.0 }
+    };
+
+    function updateFormFromSettings(settingsObj) {
+      SCHEMA.forEach(field => {
+        const el = document.getElementById('input-' + field.key);
+        if (!el) return;
+        const val = settingsObj[field.key];
+        if (field.type === 'boolean') {
+          el.checked = (val === true || val === 'True');
+        } else {
+          el.value = val !== undefined ? val : '';
+        }
+        
+        const orig = originalSettings[field.key];
+        const isChanged = String(val) !== String(orig);
+        const wrapper = document.querySelector('.setting-item[data-key="' + field.key + '"]');
+        if (wrapper) {
+          if (isChanged) wrapper.classList.add('changed');
+          else wrapper.classList.remove('changed');
+        }
+      });
+    }
+
     SCHEMA.forEach(field => {
       const el = document.getElementById('input-' + field.key);
       if (!el) return;
@@ -397,6 +427,25 @@ const HTML_TEMPLATE = (user, serverName, serverLabel, settings, schema, categori
           newVal = el.value !== '' ? Number(el.value) : undefined;
         } else {
           newVal = el.value;
+        }
+        
+        // Handle Difficulty Preset selection
+        if (field.key === 'Difficulty' && PRESETS[newVal]) {
+          const preset = PRESETS[newVal];
+          for (const [pKey, pVal] of Object.entries(preset)) {
+            currentSettings[pKey] = pVal;
+          }
+          currentSettings.Difficulty = newVal;
+          updateFormFromSettings(currentSettings);
+          showToast('Applied ' + newVal + ' preset settings!', 'success');
+          return;
+        }
+
+        // If manually changing a setting while Difficulty is preset, switch Difficulty to Custom
+        if (field.key !== 'Difficulty' && PRESETS[currentSettings.Difficulty]) {
+          currentSettings.Difficulty = 'Custom';
+          const diffEl = document.getElementById('input-Difficulty');
+          if (diffEl) diffEl.value = 'Custom';
         }
         
         currentSettings[field.key] = newVal;
@@ -412,6 +461,12 @@ const HTML_TEMPLATE = (user, serverName, serverLabel, settings, schema, categori
       
       el.addEventListener('input', updateChangeState);
       el.addEventListener('change', updateChangeState);
+    });
+
+    document.getElementById('btnReset').addEventListener('click', () => {
+      currentSettings = { ...originalSettings };
+      updateFormFromSettings(currentSettings);
+      showToast('Form reset to loaded settings.', 'success');
     });
     
     document.getElementById('searchInput').addEventListener('input', (e) => {
