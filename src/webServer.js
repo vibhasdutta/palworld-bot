@@ -604,13 +604,33 @@ const HTML_TEMPLATE = (user, serverName, serverLabel, settings, schema, categori
         btn.disabled = false;
       }
     }
-    
-    document.getElementById('btnSave').addEventListener('click', () => save(false));
+document.getElementById('btnSave').addEventListener('click', () => save(false));
     document.getElementById('btnSaveRestart').addEventListener('click', () => save(true));
   </script>
 </body>
 </html>
 `;
+
+function normalizeSettingValue(key, val) {
+  if (val === undefined || val === null) return '';
+  const str = String(val).trim();
+  let clean = (str.startsWith('"') && str.endsWith('"') && str.length >= 2) ? str.slice(1, -1) : str;
+
+  const schemaItem = SETTINGS_SCHEMA.find(s => s.key === key);
+  const isBool = schemaItem ? schemaItem.type === 'boolean' : key.startsWith('b');
+  const isRange = schemaItem ? schemaItem.type === 'range' : (key.endsWith('Rate') || key.endsWith('Multiplier') || key.endsWith('TimeScale'));
+
+  if (isBool) {
+    return (clean === 'true' || clean === 'True' || clean === true) ? 'True' : 'False';
+  }
+  if (isRange && clean !== '' && !isNaN(clean)) {
+    return Number(clean).toFixed(6);
+  }
+  if (schemaItem && schemaItem.type === 'number' && clean !== '' && !isNaN(clean)) {
+    return String(Number(clean));
+  }
+  return clean;
+}
 
 function createWebServer({ config, client, notify, auditLog }) {
   const app = express();
@@ -619,53 +639,44 @@ function createWebServer({ config, client, notify, auditLog }) {
   // Helper: check session
   const getSession = (req) => {
     const cookies = parseCookies(req.headers.cookie);
-    const sessionCookie = cookies.palworld_session;
-    if (!sessionCookie) return null;
-    const session = verifyPayload(sessionCookie, WEB_SECRET);
-    if (!session) return null;
-    if (session.exp && Date.now() > session.exp) return null;
-    return session;
+    if (!cookies.palworld_session) return null;
+    return verifyPayload(cookies.palworld_session, WEB_SECRET);
   };
 
-  // Auth Login Route
+  // Login Route
   app.get('/auth/login', (req, res) => {
     const { guild, server } = req.query;
     if (!guild) {
-      return res.status(400).send(ERROR_TEMPLATE('Missing Parameter', 'Guild ID is required.'));
+      return res.status(400).send(renderErrorPage('Missing Guild ID', 'Please provide a valid guild parameter in the login URL.'));
     }
 
-    const payload = {
+    const statePayload = {
       guildId: guild,
-      serverLabel: server || '',
+      serverLabel: server || 'main',
       nonce: crypto.randomBytes(16).toString('hex'),
       exp: Date.now() + 10 * 60 * 1000,
     };
-    const state = signPayload(payload, WEB_SECRET);
+    const state = signPayload(statePayload, WEB_SECRET);
 
-    const params = new URLSearchParams({
-      client_id: config.clientId,
-      redirect_uri: `${WEB_BASE_URL}/auth/callback`,
-      response_type: 'code',
-      scope: 'identify',
-      state,
-    });
+    const redirectUri = `${WEB_BASE_URL}/auth/callback`;
+    const authorizeUrl = `https://discord.com/api/oauth2/authorize?client_id=${config.clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=identify&state=${encodeURIComponent(state)}`;
 
-    res.redirect(`https://discord.com/api/oauth2/authorize?${params.toString()}`);
+    res.redirect(authorizeUrl);
   });
 
-  // Auth Callback Route
+  // Callback Route
   app.get('/auth/callback', async (req, res) => {
     const { code, state } = req.query;
     if (!code || !state) {
-      return res.status(400).send(ERROR_TEMPLATE('Auth Error', 'Missing code or state from Discord.'));
+      return res.status(400).send(renderErrorPage('Authentication Failed', 'Missing code or state parameter from Discord OAuth2 redirect.'));
     }
 
-    const stateData = verifyPayload(state, WEB_SECRET);
-    if (!stateData || Date.now() > stateData.exp) {
-      return res.status(400).send(ERROR_TEMPLATE('Invalid State', 'Login session expired or invalid. Please try again.'));
+    const statePayload = verifyPayload(state, WEB_SECRET);
+    if (!statePayload || statePayload.exp < Date.now()) {
+      return res.status(400).send(renderErrorPage('Invalid Session State', 'The login session has expired or been tampered with. Please try logging in again.'));
     }
 
-    const { guildId, serverLabel } = stateData;
+    const { guildId, serverLabel } = statePayload;
 
     try {
       // Exchange code for token
@@ -676,94 +687,96 @@ function createWebServer({ config, client, notify, auditLog }) {
           client_id: config.clientId,
           client_secret: DISCORD_CLIENT_SECRET || '',
           grant_type: 'authorization_code',
-          code,
+          code: String(code),
           redirect_uri: `${WEB_BASE_URL}/auth/callback`,
         }),
       });
 
       if (!tokenRes.ok) {
-        return res.status(400).send(ERROR_TEMPLATE('OAuth Failed', 'Failed to exchange authorization code with Discord.'));
+        const errText = await tokenRes.text();
+        console.error('OAuth2 token exchange failed:', errText);
+        return res.status(401).send(renderErrorPage('OAuth2 Failed', 'Failed to authenticate with Discord. Please verify client secret configuration.'));
       }
 
       const tokenData = await tokenRes.json();
 
-      // Fetch user profile
+      // Fetch user info
       const userRes = await fetch('https://discord.com/api/users/@me', {
         headers: { Authorization: `Bearer ${tokenData.access_token}` },
       });
 
       if (!userRes.ok) {
-        return res.status(400).send(ERROR_TEMPLATE('OAuth Failed', 'Failed to fetch user profile from Discord.'));
+        return res.status(401).send(renderErrorPage('Failed to Fetch User Profile', 'Could not retrieve Discord user information.'));
       }
 
-      const user = await userRes.json();
+      const userData = await userRes.json();
+      const userId = userData.id;
 
-      // Check Discord member tier in guild
-      let hasAdmin = false;
+      // Check Discord Guild Membership & Admin Permission
+      let isAllowed = false;
+      let userRoles = [];
       try {
         const guild = await client.guilds.fetch(guildId);
-        const member = await guild.members.fetch(user.id);
-        const roleIds = [...member.roles.cache.keys()];
-        const guildRoles = findGuildRoles(config.roles, guildId);
-        const tier = resolveTier({ roleIds, userId: user.id }, guildRoles);
-        hasAdmin = hasAccess(tier, 'admin');
+        const member = await guild.members.fetch(userId);
+        userRoles = [...member.roles.cache.keys()];
       } catch (err) {
-        console.error(`Failed to verify member ${user.id} in guild ${guildId}:`, err.message);
+        console.error('Failed to fetch guild member for permission check:', err.message);
       }
 
-      if (!hasAdmin) {
-        return res.status(403).send(ERROR_TEMPLATE('Access Denied', 'You need Admin permissions in this Discord server to access world settings.'));
+      const guildRolesConfig = findGuildRoles(config.roles, guildId);
+      const tier = resolveTier({ roleIds: userRoles, userId }, guildRolesConfig);
+      isAllowed = hasAccess(tier, 'admin');
+
+      if (!isAllowed) {
+        return res.status(403).send(renderErrorPage('Access Denied', 'You do not have Administrator permissions in this Discord server to access World Settings.'));
       }
 
-      // Create session payload
+      // Create Session Cookie
       const sessionPayload = {
-        userId: user.id,
-        username: user.global_name || user.username,
-        avatar: user.avatar,
+        userId,
+        username: userData.username,
+        avatar: userData.avatar,
         guildId,
         serverLabel,
-        exp: Date.now() + 30 * 60 * 1000,
+        exp: Date.now() + 30 * 60 * 1000, // 30 minutes
       };
-
       const sessionCookie = signPayload(sessionPayload, WEB_SECRET);
-      res.setHeader('Set-Cookie', `palworld_session=${sessionCookie}; Path=/; HttpOnly; SameSite=Lax`);
+
+      res.setHeader('Set-Cookie', `palworld_session=${sessionCookie}; Path=/; HttpOnly; SameSite=Lax; Max-Age=1800`);
       res.redirect('/settings');
     } catch (err) {
-      console.error('OAuth Callback Error:', err);
-      res.status(500).send(ERROR_TEMPLATE('Server Error', err.message));
+      console.error('OAuth2 Callback Error:', err);
+      res.status(500).send(renderErrorPage('Server Error', 'An unexpected error occurred during authentication.'));
     }
   });
 
-  // Settings Dashboard Route
+  // Settings Page Route
   app.get('/settings', (req, res) => {
     const session = getSession(req);
     if (!session) {
-      return res.status(401).send(ERROR_TEMPLATE('Unauthorized', 'Your session has expired or is invalid. Please run /worldsettings again in Discord.'));
+      return res.redirect('/auth/login');
     }
 
     const { guildId, serverLabel, username, avatar, userId } = session;
     const server = findGuildServer(config.servers, guildId, serverLabel);
+
     if (!server || !server.settingsFilePath) {
-      return res.status(404).send(ERROR_TEMPLATE('Server Not Found', `No configured settings file found for server "${serverLabel}".`));
+      return res.status(404).send(renderErrorPage('Server Not Found', `No server configured with label "${serverLabel}" in this guild.`));
     }
 
-    const { settings: settingsMap, exists } = readWorldSettings(server.settingsFilePath);
-    if (!exists) {
-      return res.status(404).send(ERROR_TEMPLATE('File Not Found', `PalWorldSettings.ini not found at path: ${server.settingsFilePath}`));
-    }
+    const { settings: settingsMap } = readWorldSettings(server.settingsFilePath);
+    const settingsObj = Object.fromEntries(settingsMap);
+    const serverName = settingsMap.get('ServerName') || serverLabel;
 
-    const settingsObj = {};
-    for (const [k, v] of settingsMap.entries()) {
-      let val = v !== undefined ? String(v) : '';
-      if (val.startsWith('"') && val.endsWith('"') && val.length >= 2) {
-        val = val.slice(1, -1);
-      }
-      settingsObj[k] = val;
-    }
+    const html = renderSettingsPage({
+      settings: settingsObj,
+      schema: SETTINGS_SCHEMA,
+      categories: CATEGORIES,
+      user: { username, avatar, userId },
+      serverLabel,
+      serverName: serverName.replace(/^"|"$/g, ''),
+    });
 
-    const serverName = settingsObj.ServerName || server.label || 'Palworld Server';
-    const html = HTML_TEMPLATE({ username, avatar, userId }, serverName, server.label, settingsObj, SETTINGS_SCHEMA, CATEGORIES);
-    res.setHeader('Content-Type', 'text/html');
     res.send(html);
   });
 
@@ -788,22 +801,25 @@ function createWebServer({ config, client, notify, auditLog }) {
 
     const { settings: currentMap } = readWorldSettings(server.settingsFilePath);
     const changedKeys = [];
+    const changedDetails = [];
 
     for (const [key, val] of Object.entries(newSettings)) {
-      let oldVal = currentMap.get(key);
-      if (oldVal !== undefined && String(oldVal).startsWith('"') && String(oldVal).endsWith('"') && String(oldVal).length >= 2) {
-        oldVal = String(oldVal).slice(1, -1);
-      }
-      if (String(oldVal) !== String(val)) {
+      const rawOld = currentMap.get(key);
+      const oldNorm = normalizeSettingValue(key, rawOld);
+      const newNorm = normalizeSettingValue(key, val);
+
+      if (oldNorm !== newNorm) {
         changedKeys.push(key);
+        changedDetails.push({ key, oldVal: oldNorm, newVal: newNorm });
+
         let formattedVal;
         const schemaItem = SETTINGS_SCHEMA.find(s => s.key === key);
-        if (schemaItem && schemaItem.type === 'range' && val !== '' && val !== undefined && !isNaN(val)) {
-          formattedVal = Number(val).toFixed(6);
-        } else if (key === 'Difficulty' || key === 'RandomizerType' || key === 'DeathPenalty' || key === 'LogFormatType' || key === 'DenyTechnologyList' || (String(val).startsWith('(') && String(val).endsWith(')')) || val === 'True' || val === 'False' || (!isNaN(val) && String(val).trim() !== '')) {
-          formattedVal = val;
-        } else if (val !== '' && val !== undefined && val !== null) {
-          formattedVal = `"${String(val).replace(/"/g, '')}"`;
+        if (schemaItem && schemaItem.type === 'range' && newNorm !== '' && !isNaN(newNorm)) {
+          formattedVal = Number(newNorm).toFixed(6);
+        } else if (key === 'Difficulty' || key === 'RandomizerType' || key === 'DeathPenalty' || key === 'LogFormatType' || key === 'DenyTechnologyList' || (String(newNorm).startsWith('(') && String(newNorm).endsWith(')')) || newNorm === 'True' || newNorm === 'False' || (!isNaN(newNorm) && String(newNorm).trim() !== '')) {
+          formattedVal = newNorm;
+        } else if (newNorm !== '') {
+          formattedVal = `"${String(newNorm).replace(/"/g, '')}"`;
         } else {
           formattedVal = '""';
         }
@@ -820,6 +836,9 @@ function createWebServer({ config, client, notify, auditLog }) {
       if (!success) {
         return res.status(500).json({ success: false, error: 'Failed to write updated settings to disk.' });
       }
+
+      const diffLines = changedDetails.map(c => `-\t${c.key}: ${c.oldVal}\n+\t${c.key}: ${c.newVal}`).join('\n');
+      const diffContent = `\`\`\`diff\n${diffLines}\n\`\`\``;
 
       // Append Audit Log
       if (auditLog && auditLog.appendAuditEntry) {
@@ -838,10 +857,9 @@ function createWebServer({ config, client, notify, auditLog }) {
         notify.serverLog(guildId, {
           event: 'settings.updated',
           level: 'warning',
-          msg: `<@${userId}> updated ${changedKeys.length} settings via web editor`,
+          msg: `<@${userId}> updated ${changedKeys.length} setting(s) via web editor:\n${diffContent}`,
           actor: `${username} (${userId})`,
           server: server.label,
-          changes: changedKeys.join(', '),
         }).catch(() => {});
       }
     }
