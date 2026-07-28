@@ -26,6 +26,7 @@ const { watchPm2 } = require('./pm2Watcher');
 const { createPlayerPoller } = require('./playerPoller');
 const { createSaveFileWatcher } = require('./saveFileWatcher');
 const loadCommands = require('./commands');
+const { createWebServer } = require('./webServer');
 
 const BOT_PM2_NAME = 'palworld-bot';
 
@@ -39,7 +40,7 @@ const rest = new REST().setToken(config.discordToken);
 // with server activity. GuildMemberManager is zeroed too since interaction.member
 // is populated straight from the interaction payload, not from cache.
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds],
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
   makeCache: Options.cacheWithLimits({
     MessageManager: 0,
     PresenceManager: 0,
@@ -65,7 +66,9 @@ const auditLog = {
   },
 };
 
-const baseCtx = { config, auditLog };
+const webServer = createWebServer({ config, client, notify, auditLog });
+
+const baseCtx = { config, auditLog, webServer };
 
 // Resolves which server (if any) a command should act on for this guild, and
 // builds the ctx for it. A guild is its own tenant: no shared Palworld
@@ -80,6 +83,7 @@ function resolveServerCtx(guildId, label) {
     return {
       ctx: {
         ...baseCtx,
+        server,
         palworld: {
           ...rawPalworld,
           // Marking this expected before the call means saveFileWatcher.js
@@ -241,6 +245,7 @@ client.once(Events.ClientReady, async (readyClient) => {
   }
   playerPoller.start();
   saveFileWatcher.start();
+  webServer.start();
 });
 
 client.on(Events.GuildCreate, (guild) => {
