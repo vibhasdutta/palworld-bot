@@ -254,7 +254,7 @@ const HTML_TEMPLATE = (user, serverName, serverLabel, settings, schema, categori
       margin-top: 0.4rem;
     }
 
-    input[type="text"], input[type="number"], select {
+    input[type="text"], input[type="number"], input[type="password"], select {
       width: 100%;
       background-color: var(--bg-color);
       border: 1px solid var(--border);
@@ -371,8 +371,8 @@ const HTML_TEMPLATE = (user, serverName, serverLabel, settings, schema, categori
   <div class="toast-container" id="toastContainer"></div>
 
   <script>
-    function togglePasswordVisibility(inputId, btn) {
-      const input = document.getElementById(inputId);
+    function togglePassword(btn) {
+      const input = btn ? btn.previousElementSibling || (btn.parentElement ? btn.parentElement.querySelector('input') : null) : null;
       if (!input) return;
       if (input.type === 'password') {
         input.type = 'text';
@@ -446,7 +446,7 @@ const HTML_TEMPLATE = (user, serverName, serverLabel, settings, schema, categori
           const minAttr = field.min !== undefined ? 'min="' + field.min + '"' : '';
           inputHtml = '<label class="setting-label" for="input-' + field.key + '">' + (field.label || field.key) + '</label>' + (field.description ? '<div class="setting-desc">' + field.description + '</div>' : '') + '<input type="number" id="input-' + field.key + '" value="' + (val !== undefined ? String(val).replace(/"/g, '&quot;') : '') + '" ' + stepAttr + ' ' + minAttr + '>';
         } else if (field.type === 'password') {
-          inputHtml = '<label class="setting-label" for="input-' + field.key + '">' + (field.label || field.key) + '</label>' + (field.description ? '<div class="setting-desc">' + field.description + '</div>' : '') + '<div class="password-wrapper"><input type="password" id="input-' + field.key + '" value="' + (val !== undefined ? String(val).replace(/"/g, '&quot;') : '') + '"><button type="button" class="toggle-password-btn" title="Toggle password visibility" onclick="togglePasswordVisibility(\'input-' + field.key + '\', this)">👁️</button></div>';
+          inputHtml = '<label class="setting-label" for="input-' + field.key + '">' + (field.label || field.key) + '</label>' + (field.description ? '<div class="setting-desc">' + field.description + '</div>' : '') + '<div class="password-wrapper"><input type="password" id="input-' + field.key + '" value="' + (val !== undefined ? String(val).replace(/"/g, '&quot;') : '') + '"><button type="button" class="toggle-password-btn" title="Toggle password visibility" onclick="togglePassword(this)">👁️</button></div>';
         } else {
           inputHtml = '<label class="setting-label" for="input-' + field.key + '">' + (field.label || field.key) + '</label>' + (field.description ? '<div class="setting-desc">' + field.description + '</div>' : '') + '<input type="text" id="input-' + field.key + '" value="' + (val !== undefined ? String(val).replace(/"/g, '&quot;') : '') + '">';
         }
