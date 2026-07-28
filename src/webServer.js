@@ -841,9 +841,22 @@ function createWebServer({ config, client, notify, auditLog }) {
       return res.json({ success: true, message: 'No settings were changed.' });
     }
 
+    if (restart && server.pm2ProcessName) {
+      // Stop the server first so PalServer finishes its shutdown flush before we write new settings to disk
+      try {
+        await controlService(server.pm2ProcessName, 'stop');
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      } catch {
+        // Server was likely offline -- ignore stop failure
+      }
+    }
+
     if (changedKeys.length > 0) {
       const success = writeWorldSettings(server.settingsFilePath, currentMap);
       if (!success) {
+        if (restart && server.pm2ProcessName) {
+          await controlService(server.pm2ProcessName, 'start').catch(() => {});
+        }
         return res.status(500).json({ success: false, error: 'Failed to write updated settings to disk.' });
       }
 
@@ -880,18 +893,13 @@ function createWebServer({ config, client, notify, auditLog }) {
       ? `Successfully saved ${changedKeys.length} setting(s)!`
       : 'No settings were changed.';
 
-    // Handle Optional Server Restart / Start
+    // Start server if restart was requested
     if (restart && server.pm2ProcessName) {
       try {
-        await controlService(server.pm2ProcessName, 'restart');
-        message += ' Server restart triggered.';
-      } catch (err) {
-        try {
-          await controlService(server.pm2ProcessName, 'start');
-          message += ' Server was offline — start triggered.';
-        } catch (startErr) {
-          message += ` Warning: failed to restart/start server: ${startErr.message}`;
-        }
+        await controlService(server.pm2ProcessName, 'start');
+        message += ' Server restarted with new settings loaded!';
+      } catch (startErr) {
+        message += ` Warning: failed to start server: ${startErr.message}`;
       }
     }
 
