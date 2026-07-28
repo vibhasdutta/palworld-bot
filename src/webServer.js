@@ -356,7 +356,14 @@ const HTML_TEMPLATE = (user, serverName, serverLabel, settings, schema, categori
       body.className = 'category-body';
       
       fields.forEach(field => {
-        const val = currentSettings[field.key];
+        let rawVal = currentSettings[field.key];
+        let val = rawVal !== undefined ? String(rawVal) : '';
+        if (val.startsWith('"') && val.endsWith('"') && val.length >= 2) {
+          val = val.slice(1, -1);
+        }
+        currentSettings[field.key] = val;
+        originalSettings[field.key] = val;
+
         const wrapper = document.createElement('div');
         wrapper.className = 'setting-item';
         wrapper.dataset.key = field.key;
@@ -364,7 +371,7 @@ const HTML_TEMPLATE = (user, serverName, serverLabel, settings, schema, categori
         
         let inputHtml = '';
         if (field.type === 'boolean') {
-          const checked = (val === true || val === 'True') ? 'checked' : '';
+          const checked = (val === true || val === 'True' || val === 'true') ? 'checked' : '';
           inputHtml = '<div class="setting-label"><span>' + (field.label || field.key) + '</span><label class="toggle-switch"><input type="checkbox" id="input-' + field.key + '" ' + checked + '><span class="slider"></span></label></div>' + (field.description ? '<div class="setting-desc">' + field.description + '</div>' : '');
         } else if (field.type === 'select' && field.options) {
           const opts = field.options.map(o => '<option value="' + o + '" ' + (val == o ? 'selected' : '') + '>' + o + '</option>').join('');
@@ -372,9 +379,9 @@ const HTML_TEMPLATE = (user, serverName, serverLabel, settings, schema, categori
         } else if (field.type === 'number') {
           const stepAttr = field.step ? 'step="' + field.step + '"' : '';
           const minAttr = field.min !== undefined ? 'min="' + field.min + '"' : '';
-          inputHtml = '<label class="setting-label" for="input-' + field.key + '">' + (field.label || field.key) + '</label>' + (field.description ? '<div class="setting-desc">' + field.description + '</div>' : '') + '<input type="number" id="input-' + field.key + '" value="' + (val !== undefined ? val : '') + '" ' + stepAttr + ' ' + minAttr + '>';
+          inputHtml = '<label class="setting-label" for="input-' + field.key + '">' + (field.label || field.key) + '</label>' + (field.description ? '<div class="setting-desc">' + field.description + '</div>' : '') + '<input type="number" id="input-' + field.key + '" value="' + (val !== undefined ? String(val).replace(/"/g, '&quot;') : '') + '" ' + stepAttr + ' ' + minAttr + '>';
         } else {
-          inputHtml = '<label class="setting-label" for="input-' + field.key + '">' + (field.label || field.key) + '</label>' + (field.description ? '<div class="setting-desc">' + field.description + '</div>' : '') + '<input type="text" id="input-' + field.key + '" value="' + (val !== undefined ? val : '') + '">';
+          inputHtml = '<label class="setting-label" for="input-' + field.key + '">' + (field.label || field.key) + '</label>' + (field.description ? '<div class="setting-desc">' + field.description + '</div>' : '') + '<input type="text" id="input-' + field.key + '" value="' + (val !== undefined ? String(val).replace(/"/g, '&quot;') : '') + '">';
         }
         
         wrapper.innerHTML = inputHtml;
@@ -678,7 +685,11 @@ function createWebServer({ config, client, notify, auditLog }) {
 
     const settingsObj = {};
     for (const [k, v] of settingsMap.entries()) {
-      settingsObj[k] = v;
+      let val = v !== undefined ? String(v) : '';
+      if (val.startsWith('"') && val.endsWith('"') && val.length >= 2) {
+        val = val.slice(1, -1);
+      }
+      settingsObj[k] = val;
     }
 
     const serverName = settingsObj.ServerName || server.label || 'Palworld Server';
@@ -710,10 +721,21 @@ function createWebServer({ config, client, notify, auditLog }) {
     const changedKeys = [];
 
     for (const [key, val] of Object.entries(newSettings)) {
-      const oldVal = currentMap.get(key);
+      let oldVal = currentMap.get(key);
+      if (oldVal !== undefined && String(oldVal).startsWith('"') && String(oldVal).endsWith('"') && String(oldVal).length >= 2) {
+        oldVal = String(oldVal).slice(1, -1);
+      }
       if (String(oldVal) !== String(val)) {
         changedKeys.push(key);
-        currentMap.set(key, val);
+        let formattedVal = val;
+        if (key === 'Difficulty' || key === 'RandomizerType' || key === 'DeathPenalty' || key === 'LogFormatType' || key === 'DenyTechnologyList' || (String(val).startsWith('(') && String(val).endsWith(')')) || val === 'True' || val === 'False' || (!isNaN(val) && String(val).trim() !== '')) {
+          formattedVal = val;
+        } else if (val !== '' && val !== undefined && val !== null) {
+          formattedVal = `"${String(val).replace(/"/g, '')}"`;
+        } else {
+          formattedVal = '""';
+        }
+        currentMap.set(key, formattedVal);
       }
     }
 
