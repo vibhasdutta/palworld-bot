@@ -57,14 +57,15 @@ test('readWorldSettings returns exists:false for missing file', () => {
   assert.ok(result.settings instanceof Map);
 });
 
-test('writeWorldSettings preserves the [/Script/Pal.PalGameWorldSettings] header', () => {
+test('writeWorldSettings preserves the [/Script/Pal.PalGameWorldSettings] header and returns boolean status', () => {
   let writtenData = '';
   const mockWrite = (path, data) => {
     writtenData = data;
   };
   const map = new Map([['Test', '1']]);
-  writeWorldSettings('dummy.ini', map, mockWrite);
+  const res = writeWorldSettings('dummy.ini', map, mockWrite);
   
+  assert.strictEqual(res, true);
   assert.ok(writtenData.includes('[/Script/Pal.PalGameWorldSettings]'));
   assert.ok(writtenData.includes('OptionSettings=(Test=1)'));
 });

@@ -96,8 +96,14 @@ function readWorldSettings(settingsFilePath, readFileSync = fs.readFileSync) {
 }
 
 function writeWorldSettings(settingsFilePath, settingsMap, writeFileSync = fs.writeFileSync) {
-  const content = serializeOptionSettings(settingsMap);
-  writeFileSync(settingsFilePath, content, 'utf8');
+  try {
+    const content = serializeOptionSettings(settingsMap);
+    writeFileSync(settingsFilePath, content, 'utf8');
+    return true;
+  } catch (error) {
+    console.error(`Failed to write settings to ${settingsFilePath}:`, error.message);
+    return false;
+  }
 }
 
 module.exports = {
