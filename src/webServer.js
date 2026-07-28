@@ -223,6 +223,28 @@ const HTML_TEMPLATE = (user, serverName, serverLabel, settings, schema, categori
     .setting-label { font-weight: 600; font-size: 0.85rem; margin-bottom: 0.3rem; display: flex; justify-content: space-between; align-items: center; }
     .setting-desc { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.6rem; line-height: 1.3; }
     
+    .setting-header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.3rem; }
+    .range-badge {
+      background-color: var(--accent);
+      color: white;
+      font-family: monospace;
+      font-size: 0.8rem;
+      font-weight: 700;
+      padding: 0.15rem 0.5rem;
+      border-radius: 0.25rem;
+    }
+    input[type="range"].range-slider {
+      width: 100%;
+      height: 6px;
+      background: var(--bg-color);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      outline: none;
+      accent-color: var(--accent);
+      cursor: pointer;
+      margin-top: 0.4rem;
+    }
+
     input[type="text"], input[type="number"], select {
       width: 100%;
       background-color: var(--bg-color);
@@ -376,6 +398,12 @@ const HTML_TEMPLATE = (user, serverName, serverLabel, settings, schema, categori
         } else if (field.type === 'select' && field.options) {
           const opts = field.options.map(o => '<option value="' + o + '" ' + (val == o ? 'selected' : '') + '>' + o + '</option>').join('');
           inputHtml = '<label class="setting-label" for="input-' + field.key + '">' + (field.label || field.key) + '</label>' + (field.description ? '<div class="setting-desc">' + field.description + '</div>' : '') + '<select id="input-' + field.key + '">' + opts + '</select>';
+        } else if (field.type === 'range') {
+          const stepAttr = field.step ? 'step="' + field.step + '"' : 'step="0.1"';
+          const minAttr = field.min !== undefined ? 'min="' + field.min + '"' : 'min="0.1"';
+          const maxAttr = field.max !== undefined ? 'max="' + field.max + '"' : 'max="5"';
+          const displayVal = val !== undefined && val !== '' ? val : '1.0';
+          inputHtml = '<div class="setting-header-row"><label class="setting-label" for="input-' + field.key + '" style="margin:0;">' + (field.label || field.key) + '</label><span class="range-badge" id="badge-' + field.key + '">' + displayVal + '</span></div>' + (field.description ? '<div class="setting-desc">' + field.description + '</div>' : '') + '<input type="range" class="range-slider" id="input-' + field.key + '" value="' + displayVal + '" ' + minAttr + ' ' + maxAttr + ' ' + stepAttr + '>';
         } else if (field.type === 'number') {
           const stepAttr = field.step ? 'step="' + field.step + '"' : '';
           const minAttr = field.min !== undefined ? 'min="' + field.min + '"' : '';
@@ -412,6 +440,8 @@ const HTML_TEMPLATE = (user, serverName, serverLabel, settings, schema, categori
           el.checked = (val === true || val === 'True' || val === 'true');
         } else {
           el.value = val !== undefined ? val : '';
+          const badge = document.getElementById('badge-' + field.key);
+          if (badge) badge.innerText = el.value;
         }
         
         const orig = originalSettings[field.key];
@@ -435,8 +465,10 @@ const HTML_TEMPLATE = (user, serverName, serverLabel, settings, schema, categori
         let newVal;
         if (field.type === 'boolean') {
           newVal = el.checked ? 'True' : 'False';
-        } else if (field.type === 'number') {
+        } else if (field.type === 'range' || field.type === 'number') {
           newVal = el.value !== '' ? Number(el.value) : undefined;
+          const badge = document.getElementById('badge-' + field.key);
+          if (badge) badge.innerText = el.value;
         } else {
           newVal = el.value;
         }
@@ -733,8 +765,10 @@ function createWebServer({ config, client, notify, auditLog }) {
       }
       if (String(oldVal) !== String(val)) {
         changedKeys.push(key);
-        let formattedVal = val;
-        if (key === 'Difficulty' || key === 'RandomizerType' || key === 'DeathPenalty' || key === 'LogFormatType' || key === 'DenyTechnologyList' || (String(val).startsWith('(') && String(val).endsWith(')')) || val === 'True' || val === 'False' || (!isNaN(val) && String(val).trim() !== '')) {
+        const schemaItem = SETTINGS_SCHEMA.find(s => s.key === key);
+        if (schemaItem && schemaItem.type === 'range' && val !== '' && val !== undefined && !isNaN(val)) {
+          formattedVal = Number(val).toFixed(6);
+        } else if (key === 'Difficulty' || key === 'RandomizerType' || key === 'DeathPenalty' || key === 'LogFormatType' || key === 'DenyTechnologyList' || (String(val).startsWith('(') && String(val).endsWith(')')) || val === 'True' || val === 'False' || (!isNaN(val) && String(val).trim() !== '')) {
           formattedVal = val;
         } else if (val !== '' && val !== undefined && val !== null) {
           formattedVal = `"${String(val).replace(/"/g, '')}"`;
