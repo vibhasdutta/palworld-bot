@@ -88,6 +88,7 @@ const ANSI = {
   white: '\u001b[1;37m',
   red: '\u001b[1;31m',
   yellow: '\u001b[1;33m',
+  orange: '\u001b[0;33m',
   green: '\u001b[1;32m',
   blue: '\u001b[1;34m',
   magenta: '\u001b[1;35m',
@@ -98,6 +99,8 @@ function levelColor(level) {
   switch (level) {
     case 'ERROR':
       return ANSI.red;
+    case 'AUDIT':
+      return ANSI.orange;
     case 'WARN':
     case 'LEAVE':
       return ANSI.yellow;
@@ -118,7 +121,8 @@ function formatStructuredLog(entry) {
     success: 'SUCCESS',
     warning: 'WARN',
     warn: 'WARN',
-    danger: 'ERROR',
+    danger: 'AUDIT',
+    audit: 'AUDIT',
     error: 'ERROR',
     join: 'JOIN',
     leave: 'LEAVE',

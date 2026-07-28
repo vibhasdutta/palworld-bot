@@ -21,7 +21,7 @@ test('formatStructuredLog generates logfmt inside ```ansi codeblock with pure wh
   assert.ok(logStr.startsWith('```ansi\n'));
   assert.ok(logStr.endsWith('\n```'));
   assert.ok(logStr.includes('2026-07-28T14:15:52.123Z'));
-  assert.ok(logStr.includes('[ERROR]'));
+  assert.ok(logStr.includes('[AUDIT]'));
   assert.ok(logStr.includes('event=command.kick'));
   assert.ok(logStr.includes('actor='));
   assert.ok(logStr.includes('"alice (12345)"'));
