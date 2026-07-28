@@ -28,8 +28,11 @@ function cleanPlayerId(id) {
 }
 
 function getDisplayPlayerId(player) {
-  if (isValidId(player.playerId)) return cleanPlayerId(player.playerId);
-  if (isValidId(player.userId)) return player.userId;
+  const pId = isValidId(player.playerId) ? cleanPlayerId(player.playerId) : null;
+  const uId = isValidId(player.userId) ? player.userId : null;
+  if (pId && uId) return `${pId} | Platform: ${uId}`;
+  if (pId) return pId;
+  if (uId) return uId;
   if (player.accountName && player.accountName !== '') return player.accountName;
   if (player.name && player.name !== '') return player.name;
   return 'Connecting';

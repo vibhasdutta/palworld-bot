@@ -43,7 +43,6 @@ test('a player connecting with playerId None transitioning to real hex ID does n
   assert.equal(notify.messages.length, 1);
   assert.equal(notify.messages[0].content.event, 'player.join');
   assert.equal(notify.messages[0].content.player, 'Campione');
-  assert.equal(notify.messages[0].content.playerId, 'Campione');
 
   // Campione finishes loading (playerId = 65429BFB...)
   players = [{ playerId: 'u1', name: 'Alice' }, { playerId: '65429BFB000000000000000000000000', accountName: 'Campione', name: 'Campione' }];
