@@ -13,9 +13,9 @@ async function execute(interaction, ctx) {
   try {
     await ctx.palworld.announce(message);
     ctx.auditLog.appendAuditEntry({ guildId: interaction.guildId, actor: interaction.user.tag, actorId: interaction.user.id, command: 'announce', message });
-    await interaction.reply({ embeds: [successEmbed(`Announced: "${message}"`)] });
+    await interaction.reply(successEmbed(`Announced: "${message}"`, { command: 'announce', message }));
   } catch (err) {
-    await interaction.reply({ embeds: [errorEmbed(`Failed to announce: ${err.message}`)], ephemeral: true });
+    await interaction.reply({ ...errorEmbed(`Failed to announce: ${err.message}`, { command: 'announce' }), ephemeral: true });
   }
 }
 

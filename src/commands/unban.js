@@ -14,9 +14,9 @@ async function execute(interaction, ctx) {
     await ctx.palworld.unban(userid);
     ctx.auditLog.appendAuditEntry({ guildId: interaction.guildId, actor: interaction.user.tag, actorId: interaction.user.id, command: 'unban', target: userid });
     await ctx.palworld.announce(`${userid} was unbanned.`).catch(() => {});
-    await interaction.reply({ embeds: [successEmbed(`Unbanned \`${userid}\`.`)] });
+    await interaction.reply(successEmbed(`Unbanned \`${userid}\`.`, { command: 'unban', target: userid }));
   } catch (err) {
-    await interaction.reply({ embeds: [errorEmbed(`Failed to unban: ${err.message}`)], ephemeral: true });
+    await interaction.reply({ ...errorEmbed(`Failed to unban: ${err.message}`, { command: 'unban', target: userid }), ephemeral: true });
   }
 }
 

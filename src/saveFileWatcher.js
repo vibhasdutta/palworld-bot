@@ -28,9 +28,11 @@ function createSaveFileWatcher({ getServers, statSync, expectedActions, notify, 
       const isFirstPoll = previous === undefined;
       if (!isFirstPoll && mtimeMs > previous && !expectedActions.wasExpected(`save:${key}`)) {
         notify.serverLog(server.guildId, {
-          title: 'World Saved',
-          description: `💾 World saved on **${server.label}** (autosave or in-game, not \`/save\`).`,
+          event: 'server.save',
+          server: server.label,
+          trigger: 'autosave_or_ingame',
           level: 'info',
+          msg: `World saved on ${server.label}`,
         }).catch(() => {});
       }
       known.set(key, mtimeMs);

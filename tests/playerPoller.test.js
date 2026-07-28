@@ -47,7 +47,18 @@ test('a new player on the second poll is reported as joined', async () => {
   await poller.pollOnce();
 
   assert.deepEqual(notify.messages, [
-    { guildId: 'G1', content: { title: 'Player Joined', description: '🟢 **Bob** joined main.', level: 'success' } },
+    {
+      guildId: 'G1',
+      content: {
+        event: 'player.connect',
+        server: 'main',
+        player: 'Bob',
+        playerId: 'u2',
+        status: 'joined',
+        level: 'success',
+        msg: 'Bob joined main',
+      },
+    },
   ]);
 });
 
@@ -65,7 +76,18 @@ test('a player missing on the second poll is reported as left', async () => {
   await poller.pollOnce();
 
   assert.deepEqual(notify.messages, [
-    { guildId: 'G1', content: { title: 'Player Left', description: '🔴 **Bob** left main.', level: 'danger' } },
+    {
+      guildId: 'G1',
+      content: {
+        event: 'player.disconnect',
+        server: 'main',
+        player: 'Bob',
+        playerId: 'u2',
+        status: 'left',
+        level: 'danger',
+        msg: 'Bob left main',
+      },
+    },
   ]);
 });
 

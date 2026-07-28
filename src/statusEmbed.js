@@ -1,4 +1,4 @@
-const { EmbedBuilder } = require('discord.js');
+const { formatStructuredLog } = require('./notify');
 const { getSystemStats } = require('./systemStats');
 
 function formatUptime(seconds) {
@@ -8,29 +8,27 @@ function formatUptime(seconds) {
 }
 
 async function buildStatusEmbed(palworld) {
-  const [info, { players }, metrics] = await Promise.all([
+  const [info, { players = [] }, metrics] = await Promise.all([
     palworld.getInfo(),
     palworld.getPlayers(),
     palworld.getMetrics(),
   ]);
   const system = getSystemStats();
 
-  const embed = new EmbedBuilder()
-    .setTitle(info.servername)
-    .setColor(0x2ecc71)
-    .addFields(
-      { name: 'Version', value: info.version, inline: true },
-      { name: 'Players', value: `${players.length}/${metrics.maxplayernum}`, inline: true },
-      { name: 'In-game day', value: String(metrics.days), inline: true },
-      { name: 'Server FPS', value: `${metrics.serverfps} (${metrics.serverframetime.toFixed(1)}ms)`, inline: true },
-      { name: 'Server uptime', value: formatUptime(metrics.uptime), inline: true },
-      { name: 'VM CPU load (1m avg)', value: `${system.cpuLoad1m.toFixed(2)} / ${system.cpuCount} cores`, inline: true },
-      { name: 'VM memory', value: `${system.memUsedMb}MB / ${system.memTotalMb}MB`, inline: true },
-    )
-    .setTimestamp();
+  const content = formatStructuredLog({
+    event: 'server.status',
+    level: 'success',
+    server: info.servername,
+    version: info.version,
+    players: `${players.length}/${metrics.maxplayernum}`,
+    in_game_day: metrics.days,
+    fps: `${metrics.serverfps} (${metrics.serverframetime.toFixed(1)}ms)`,
+    uptime: formatUptime(metrics.uptime),
+    cpu: `${system.cpuLoad1m.toFixed(2)} / ${system.cpuCount} cores`,
+    mem: `${system.memUsedMb}MB / ${system.memTotalMb}MB`,
+  });
 
-  if (info.description) embed.setDescription(info.description);
-  return embed;
+  return { content };
 }
 
 module.exports = { buildStatusEmbed, formatUptime };

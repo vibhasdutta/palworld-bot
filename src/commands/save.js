@@ -9,9 +9,9 @@ async function execute(interaction, ctx) {
   try {
     await ctx.palworld.save();
     ctx.auditLog.appendAuditEntry({ guildId: interaction.guildId, actor: interaction.user.tag, actorId: interaction.user.id, command: 'save' });
-    await interaction.reply({ embeds: [successEmbed('World saved.')] });
+    await interaction.reply(successEmbed('World saved.', { command: 'save' }));
   } catch (err) {
-    await interaction.reply({ embeds: [errorEmbed(`Failed to save: ${err.message}`)], ephemeral: true });
+    await interaction.reply({ ...errorEmbed(`Failed to save: ${err.message}`, { command: 'save' }), ephemeral: true });
   }
 }
 

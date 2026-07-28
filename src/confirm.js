@@ -12,9 +12,13 @@ function buildConfirmRow(actionId) {
 
 async function awaitConfirmation(interaction, actionId, { timeoutMs = 15000, embeds = [] } = {}) {
   const { row, confirmId, cancelId } = buildConfirmRow(actionId);
+
+  const previewContent = embeds[0]?.content ? `${embeds[0].content}\nAre you sure? This action cannot be undone.` : 'Are you sure? This action cannot be undone.';
+  const activeEmbeds = embeds[0]?.content ? [] : embeds;
+
   const reply = await interaction.reply({
-    content: 'Are you sure? This action cannot be undone.',
-    embeds,
+    content: previewContent,
+    embeds: activeEmbeds,
     components: [row],
     ephemeral: true,
     fetchReply: true,

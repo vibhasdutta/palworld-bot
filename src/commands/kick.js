@@ -15,7 +15,7 @@ const tier = 'operator';
 async function execute(interaction, ctx) {
   const userid = interaction.options.getString('userid');
   if (!userid) {
-    await interaction.reply({ embeds: [errorEmbed('Specify a player to kick (the `userid` option).')], ephemeral: true });
+    await interaction.reply({ ...errorEmbed('Specify a player to kick (the `userid` option).', { command: 'kick' }), ephemeral: true });
     return;
   }
   const reason = interaction.options.getString('reason') || 'Kicked by an admin.';
@@ -23,9 +23,9 @@ async function execute(interaction, ctx) {
     await ctx.palworld.kick(userid, reason);
     ctx.auditLog.appendAuditEntry({ guildId: interaction.guildId, actor: interaction.user.tag, actorId: interaction.user.id, command: 'kick', target: userid, reason });
     await ctx.palworld.announce(`${userid} was kicked. Reason: ${reason}`).catch(() => {});
-    await interaction.reply({ embeds: [successEmbed(`Kicked \`${userid}\`.`)] });
+    await interaction.reply(successEmbed(`Kicked \`${userid}\`.`, { command: 'kick', target: userid, reason }));
   } catch (err) {
-    await interaction.reply({ embeds: [errorEmbed(`Failed to kick: ${err.message}`)], ephemeral: true });
+    await interaction.reply({ ...errorEmbed(`Failed to kick: ${err.message}`, { command: 'kick', target: userid }), ephemeral: true });
   }
 }
 

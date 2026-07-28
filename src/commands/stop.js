@@ -38,7 +38,7 @@ async function execute(interaction, ctx) {
     }
   } catch (err) {
     if (!(err instanceof PalworldApiError)) {
-      await interaction.followUp({ embeds: [errorEmbed(`Failed to stop: ${err.message}`)], ephemeral: true });
+      await interaction.followUp({ ...errorEmbed(`Failed to stop: ${err.message}`, { command: 'stop' }), ephemeral: true });
       return;
     }
     restApiWorked = false;
@@ -65,9 +65,9 @@ async function execute(interaction, ctx) {
       waittime,
       via: restApiWorked ? 'rest+pm2' : 'pm2-fallback',
     });
-    await interaction.followUp({ embeds: [successEmbed('Server stopped.')] });
+    await interaction.followUp(successEmbed('Server stopped.', { command: 'stop', force, waittime }));
   } catch (err) {
-    await interaction.followUp({ embeds: [errorEmbed(`Failed to stop: ${err.message}`)], ephemeral: true });
+    await interaction.followUp({ ...errorEmbed(`Failed to stop: ${err.message}`, { command: 'stop' }), ephemeral: true });
   }
 }
 

@@ -1,11 +1,13 @@
-const { EmbedBuilder } = require('discord.js');
+const { formatStructuredLog } = require('./notify');
 
-function successEmbed(description) {
-  return new EmbedBuilder().setColor(0x2ecc71).setDescription(description).setTimestamp();
+function successEmbed(description, fields = {}) {
+  const content = formatStructuredLog({ level: 'success', description, ...fields });
+  return { content };
 }
 
-function errorEmbed(description) {
-  return new EmbedBuilder().setColor(0xe74c3c).setDescription(description).setTimestamp();
+function errorEmbed(description, fields = {}) {
+  const content = formatStructuredLog({ level: 'danger', description, ...fields });
+  return { content };
 }
 
 module.exports = { successEmbed, errorEmbed };

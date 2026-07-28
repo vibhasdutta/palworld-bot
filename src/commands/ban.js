@@ -16,7 +16,7 @@ const tier = 'operator';
 async function execute(interaction, ctx) {
   const userid = interaction.options.getString('userid');
   if (!userid) {
-    await interaction.reply({ embeds: [errorEmbed('Specify a player to ban (the `userid` option).')], ephemeral: true });
+    await interaction.reply({ ...errorEmbed('Specify a player to ban (the `userid` option).', { command: 'ban' }), ephemeral: true });
     return;
   }
   const reason = interaction.options.getString('reason') || 'Banned by an admin.';
@@ -28,9 +28,9 @@ async function execute(interaction, ctx) {
     await ctx.palworld.ban(userid, reason);
     ctx.auditLog.appendAuditEntry({ guildId: interaction.guildId, actor: interaction.user.tag, actorId: interaction.user.id, command: 'ban', target: userid, reason });
     await ctx.palworld.announce(`${userid} was banned. Reason: ${reason}`).catch(() => {});
-    await interaction.followUp({ embeds: [successEmbed(`Banned \`${userid}\`.`)] });
+    await interaction.followUp(successEmbed(`Banned \`${userid}\`.`, { command: 'ban', target: userid, reason }));
   } catch (err) {
-    await interaction.followUp({ embeds: [errorEmbed(`Failed to ban: ${err.message}`)], ephemeral: true });
+    await interaction.followUp({ ...errorEmbed(`Failed to ban: ${err.message}`, { command: 'ban', target: userid }), ephemeral: true });
   }
 }
 

@@ -8,10 +8,10 @@ const tier = 'operator';
 
 async function execute(interaction, ctx) {
   try {
-    const embed = await buildStatusEmbed(ctx.palworld);
-    await interaction.reply({ embeds: [embed] });
+    const statusPayload = await buildStatusEmbed(ctx.palworld);
+    await interaction.reply(statusPayload);
   } catch (err) {
-    await interaction.reply({ embeds: [errorEmbed(`Server unreachable: ${err.message}`)], ephemeral: true });
+    await interaction.reply({ ...errorEmbed(`Server unreachable: ${err.message}`), ephemeral: true });
   }
 }
 

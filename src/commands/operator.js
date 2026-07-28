@@ -41,7 +41,7 @@ async function execute(interaction, ctx) {
     const entry = ctx.config.roles.find((r) => r.guildId === guildId);
     const operator = entry?.operator ?? { roleIds: [], userIds: [] };
     await interaction.reply({
-      embeds: [successEmbed(`**Operator roles:** ${mentionRoles(operator.roleIds)}\n**Operator users:** ${mentionUsers(operator.userIds)}`)],
+      ...successEmbed(`Operator roles: ${mentionRoles(operator.roleIds)} | Operator users: ${mentionUsers(operator.userIds)}`, { command: 'operator', sub }),
       ephemeral: true,
     });
     return;
@@ -75,9 +75,9 @@ async function execute(interaction, ctx) {
 
     const mention = targetType === 'role' ? `<@&${target.id}>` : `<@${target.id}>`;
     const verb = isAdd ? 'Granted operator access to' : 'Revoked operator access from';
-    await interaction.reply({ embeds: [successEmbed(`${verb} ${mention}.`)] });
+    await interaction.reply(successEmbed(`${verb} ${mention}.`, { command: 'operator', sub, target: target.id }));
   } catch (err) {
-    await interaction.reply({ embeds: [errorEmbed(`Failed: ${err.message}`)], ephemeral: true });
+    await interaction.reply({ ...errorEmbed(`Failed: ${err.message}`, { command: 'operator' }), ephemeral: true });
   }
 }
 

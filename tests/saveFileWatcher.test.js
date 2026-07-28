@@ -51,7 +51,16 @@ test('an mtime increase on a later poll is reported as an external save', () => 
   watcher.pollOnce();
 
   assert.deepEqual(notify.messages, [
-    { guildId: 'G1', content: { title: 'World Saved', description: '💾 World saved on **main** (autosave or in-game, not `/save`).', level: 'info' } },
+    {
+      guildId: 'G1',
+      content: {
+        event: 'server.save',
+        server: 'main',
+        trigger: 'autosave_or_ingame',
+        level: 'info',
+        msg: 'World saved on main',
+      },
+    },
   ]);
 });
 

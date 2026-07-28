@@ -190,13 +190,26 @@ watchPm2({
     const verb = eventType === 'restart' ? 'started or restarted' : 'stopped';
 
     if (processName === BOT_PM2_NAME) {
-      const message = { title: 'Bot', description: `Bot was ${verb}.`, level: 'warning' };
+      const message = {
+        event: 'bot.pm2_action',
+        process: processName,
+        status: verb,
+        level: 'warning',
+        msg: `Bot process ${processName} was ${verb}`,
+      };
       for (const entry of config.channels) notify.botLog(entry.guildId, message).catch(() => {});
       return;
     }
 
     for (const { guildId, label } of findOwningGuildServers(processName)) {
-      const message = { title: 'Server', description: `**${label}** was ${verb}.`, level: 'warning' };
+      const message = {
+        event: 'pm2.external_action',
+        server: label,
+        process: processName,
+        status: verb,
+        level: 'warning',
+        msg: `Server ${label} (pm2: ${processName}) was ${verb} externally via pm2`,
+      };
       notify.serverLog(guildId, message).catch(() => {});
     }
   },
@@ -245,6 +258,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
     return;
   }
 
+
+
   if (!interaction.isChatInputCommand()) return;
 
   const command = commands.get(interaction.commandName);
@@ -258,11 +273,14 @@ client.on(Events.InteractionCreate, async (interaction) => {
   const tier = resolveTier(member, guildRoles);
 
   if (!hasAccess(tier, command.tier)) {
-    await interaction.reply({ embeds: [errorEmbed('You do not have permission to use this command.')], ephemeral: true });
+    await interaction.reply({ ...errorEmbed('You do not have permission to use this command.'), ephemeral: true });
     notify.botLog(interaction.guildId, {
-      title: 'Access Denied',
-      description: `<@${interaction.user.id}> was denied \`/${interaction.commandName}\` (no ${command.tier} access).`,
+      event: 'auth.access_denied',
+      command: interaction.commandName,
+      actorId: interaction.user.id,
+      tier: command.tier,
       level: 'warning',
+      msg: `<@${interaction.user.id}> was denied /${interaction.commandName} (no ${command.tier} access)`,
     }).catch(() => {});
     return;
   }
@@ -272,7 +290,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     const label = interaction.options.getString('server');
     const { ctx, errorMessage } = resolveServerCtx(interaction.guildId, label);
     if (!ctx) {
-      await interaction.reply({ embeds: [errorEmbed(errorMessage)], ephemeral: true });
+      await interaction.reply({ ...errorEmbed(errorMessage), ephemeral: true });
       return;
     }
     execCtx = ctx;
@@ -282,16 +300,19 @@ client.on(Events.InteractionCreate, async (interaction) => {
     await command.execute(interaction, execCtx);
   } catch (err) {
     console.error(`Error executing /${interaction.commandName}:`, err);
-    const payload = { embeds: [errorEmbed(`Something went wrong: ${err.message}`)], ephemeral: true };
+    const payload = { ...errorEmbed(`Something went wrong: ${err.message}`), ephemeral: true };
     if (interaction.replied || interaction.deferred) {
       await interaction.followUp(payload);
     } else {
       await interaction.reply(payload);
     }
     notify.botLog(interaction.guildId, {
-      title: 'Command Error',
-      description: `Running \`/${interaction.commandName}\` for <@${interaction.user.id}>: ${err.message}`,
+      event: 'command.error',
+      command: interaction.commandName,
+      actorId: interaction.user.id,
+      error: err.message,
       level: 'danger',
+      msg: `Error executing /${interaction.commandName} for <@${interaction.user.id}>: ${err.message}`,
     }).catch(() => {});
   }
 });

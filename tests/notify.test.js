@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createNotifier, findGuildChannels, formatAuditEntry, buildLogEmbed } = require('../src/notify');
+const { createNotifier, findGuildChannels, formatAuditEntry, formatStructuredLog } = require('../src/notify');
 
 test('findGuildChannels returns the matching entry or null', () => {
   const channels = [{ guildId: 'G1', botChannelId: 'B1', serverChannelId: 'S1' }];
@@ -8,36 +8,53 @@ test('findGuildChannels returns the matching entry or null', () => {
   assert.equal(findGuildChannels(channels, 'UNKNOWN'), null);
 });
 
-test('buildLogEmbed sets color from level, description, timestamp, and an optional title', () => {
-  const embed = buildLogEmbed({ title: 'Kick', description: 'someone got kicked', level: 'danger' });
-  const json = embed.toJSON();
+test('formatStructuredLog generates logfmt inside ```ansi codeblock with pure white timestamp and uppercase level', () => {
+  const logStr = formatStructuredLog({
+    timestamp: '2026-07-28T14:15:52.123Z',
+    level: 'danger',
+    event: 'command.kick',
+    actor: 'alice (12345)',
+    target: 'steam_1',
+    reason: 'AFK',
+  });
 
-  assert.equal(json.title, 'Kick');
-  assert.equal(json.description, 'someone got kicked');
-  assert.equal(json.color, 0xe74c3c);
-  assert.ok(json.timestamp);
+  assert.ok(logStr.startsWith('```ansi\n'));
+  assert.ok(logStr.endsWith('\n```'));
+  assert.ok(logStr.includes('2026-07-28T14:15:52.123Z'));
+  assert.ok(logStr.includes('[ERROR]'));
+  assert.ok(logStr.includes('event=command.kick'));
+  assert.ok(logStr.includes('actor='));
+  assert.ok(logStr.includes('"alice (12345)"'));
+  assert.ok(logStr.includes('target='));
+  assert.ok(logStr.includes('steam_1'));
+  assert.ok(logStr.includes('reason='));
+  assert.ok(logStr.includes('AFK'));
 });
 
-test('buildLogEmbed defaults to the info color when no level is given', () => {
-  const embed = buildLogEmbed({ description: 'x' });
-  assert.equal(embed.toJSON().color, 0x3498db);
+test('formatStructuredLog defaults to INFO when no level is given', () => {
+  const logStr = formatStructuredLog({ description: 'x' });
+  assert.ok(logStr.startsWith('```ansi\n'));
+  assert.ok(logStr.includes('[INFO]'));
+  assert.ok(logStr.includes('event=system.log'));
+  assert.ok(logStr.includes('msg='));
+  assert.ok(logStr.includes('x'));
 });
 
-test('formatAuditEntry uses a real @mention when actorId is present', () => {
+test('formatAuditEntry uses a real @mention in description and formats structured actor name', () => {
   const entry = formatAuditEntry({ actor: 'alice', actorId: '12345', command: 'kick', target: 'steam_1', reason: 'AFK' });
   assert.equal(entry.description, '<@12345> kicked `steam_1` — AFK');
-  assert.equal(entry.title, 'Kick');
+  assert.equal(entry.actor, 'alice (12345)');
+  assert.equal(entry.event, 'discord.audit.kick');
   assert.equal(entry.level, 'danger');
 });
 
-test('formatAuditEntry falls back to the plain tag for older entries with no actorId', () => {
-  assert.equal(
-    formatAuditEntry({ actor: 'alice', command: 'save' }).description,
-    '**alice** saved the world',
-  );
+test('formatAuditEntry falls back to plain actor name when actorId is absent', () => {
+  const entry = formatAuditEntry({ actor: 'alice', command: 'save' });
+  assert.equal(entry.description, '**alice** saved the world');
+  assert.equal(entry.actor, 'alice');
 });
 
-test('formatAuditEntry produces a readable description per command type', () => {
+test('formatAuditEntry produces a readable description and event per command type', () => {
   assert.equal(
     formatAuditEntry({ actor: 'alice', command: 'kick', target: 'steam_1', reason: 'AFK' }).description,
     '**alice** kicked `steam_1` — AFK',
@@ -66,7 +83,7 @@ test('formatAuditEntry assigns a sensible severity level per command', () => {
   assert.equal(formatAuditEntry({ actor: 'a', command: 'save' }).level, 'info');
 });
 
-test('createNotifier does not touch the Discord client when no channel is configured ("if not given, no sending")', async () => {
+test('createNotifier does not touch the Discord client when no channel is configured', async () => {
   let fetchCalled = false;
   const fakeClient = { channels: { fetch: async () => { fetchCalled = true; } } };
   const notify = createNotifier(fakeClient, () => [{ guildId: 'G1', botChannelId: null, serverChannelId: null }]);
@@ -77,7 +94,7 @@ test('createNotifier does not touch the Discord client when no channel is config
   assert.equal(fetchCalled, false);
 });
 
-test('createNotifier sends a rendered embed to the configured channel', async () => {
+test('createNotifier sends rendered clean markdown content to the configured channel', async () => {
   let sentTo, sentPayload;
   const fakeChannel = { send: async (payload) => { sentPayload = payload; } };
   const fakeClient = { channels: { fetch: async (id) => { sentTo = id; return fakeChannel; } } };
@@ -86,6 +103,8 @@ test('createNotifier sends a rendered embed to the configured channel', async ()
   await notify.serverLog('G1', { title: 'Save', description: 'server event', level: 'info' });
 
   assert.equal(sentTo, 'S1');
-  assert.equal(sentPayload.embeds.length, 1);
-  assert.equal(sentPayload.embeds[0].toJSON().description, 'server event');
+  assert.ok(sentPayload.content.startsWith('```ansi\n'));
+  assert.ok(sentPayload.content.includes('[INFO]'));
+  assert.ok(sentPayload.content.includes('event=save'));
+  assert.ok(sentPayload.content.includes('"server event"'));
 });
