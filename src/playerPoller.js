@@ -4,12 +4,39 @@
 // "leave" could be a normal disconnect, a kick, or a ban -- the players
 // list can't tell those apart, so the message stays honest about that
 // (just "left") instead of guessing.
+function isValidId(id) {
+  if (!id || typeof id !== 'string') return false;
+  const lower = id.trim().toLowerCase();
+  return lower !== '' && lower !== 'none' && lower !== 'null' && lower !== 'undefined' && !/^0+$/.test(lower);
+}
+
 function playerKey(player) {
-  return player.playerId || player.userId || player.accountName || player.name;
+  const pId = isValidId(player.playerId) ? player.playerId : null;
+  const uId = isValidId(player.userId) ? player.userId : null;
+  const acc = player.accountName && player.accountName !== '' ? player.accountName : null;
+  const name = player.name && player.name !== '' ? player.name : null;
+  return pId || uId || acc || name || 'unknown';
+}
+
+function getDisplayPlayerId(player) {
+  if (isValidId(player.playerId)) return player.playerId;
+  if (isValidId(player.userId)) return player.userId;
+  if (player.accountName && player.accountName !== '') return player.accountName;
+  if (player.name && player.name !== '') return player.name;
+  return 'Connecting';
+}
+
+function isSamePlayer(p1, p2) {
+  if (!p1 || !p2) return false;
+  const samePlayerId = isValidId(p1.playerId) && isValidId(p2.playerId) && p1.playerId === p2.playerId;
+  const sameUserId = isValidId(p1.userId) && isValidId(p2.userId) && p1.userId === p2.userId;
+  const sameAccount = p1.accountName && p2.accountName && p1.accountName === p2.accountName;
+  const sameName = p1.name && p2.name && p1.name === p2.name;
+  return samePlayerId || sameUserId || sameAccount || sameName;
 }
 
 function createPlayerPoller({ getServers, createClient, notify, intervalMs = 20000 }) {
-  const known = new Map(); // `${guildId}:${label}` -> Map<playerKey, name>
+  const known = new Map(); // `${guildId}:${label}` -> Map<pKey, playerObj>
 
   async function pollOnce() {
     const servers = getServers();
@@ -25,43 +52,72 @@ function createPlayerPoller({ getServers, createClient, notify, intervalMs = 200
         const client = createClient({ baseUrl: server.restApiUrl, password: server.restApiPassword });
         ({ players = [] } = await client.getPlayers());
       } catch {
-        // server unreachable this tick (restarting, REST API down, etc.) --
-        // skip without updating `known`, so a transient outage doesn't read
-        // as everyone leaving at once when it recovers.
         continue;
       }
 
-      const current = new Map(players.map((p) => [playerKey(p), p.name]));
       const previous = known.get(key) || new Map();
+      const current = new Map();
 
-      if (!isFirstPoll) {
-        for (const [id, name] of current) {
-          if (!previous.has(id)) {
-            notify.serverLog(server.guildId, {
-              event: 'player.join',
-              server: server.label,
-              player: name,
-              playerId: id,
-              status: 'joined',
-              level: 'join',
-              msg: `**${name}** (Player ID: \`${id}\`) joined ${server.label}`,
-            }).catch(() => {});
+      for (const p of players) {
+        const pKey = playerKey(p);
+        const displayId = getDisplayPlayerId(p);
+        const playerObj = {
+          name: p.name,
+          accountName: p.accountName,
+          playerId: p.playerId,
+          userId: p.userId,
+          displayId,
+        };
+
+        // Check if player matched any entry in previous poll
+        let matchedPrevKey = null;
+        for (const [prevKey, prevObj] of previous.entries()) {
+          if (isSamePlayer(p, prevObj)) {
+            matchedPrevKey = prevKey;
+            break;
           }
         }
-        for (const [id, name] of previous) {
-          if (!current.has(id)) {
+
+        current.set(pKey, playerObj);
+
+        if (!isFirstPoll && !matchedPrevKey) {
+          notify.serverLog(server.guildId, {
+            event: 'player.join',
+            server: server.label,
+            player: p.name,
+            playerId: displayId,
+            status: 'joined',
+            level: 'join',
+            msg: `**${p.name}** (Player ID: \`${displayId}\`) joined ${server.label}`,
+          }).catch(() => {});
+        }
+      }
+
+      if (!isFirstPoll) {
+        for (const [prevKey, prevObj] of previous.entries()) {
+          let foundInCurrent = false;
+          for (const currObj of current.values()) {
+            if (isSamePlayer(prevObj, currObj)) {
+              foundInCurrent = true;
+              break;
+            }
+          }
+
+          if (!foundInCurrent) {
+            const leaveId = prevObj.displayId;
             notify.serverLog(server.guildId, {
               event: 'player.leave',
               server: server.label,
-              player: name,
-              playerId: id,
+              player: prevObj.name,
+              playerId: leaveId,
               status: 'left',
               level: 'leave',
-              msg: `**${name}** (Player ID: \`${id}\`) left ${server.label}`,
+              msg: `**${prevObj.name}** (Player ID: \`${leaveId}\`) left ${server.label}`,
             }).catch(() => {});
           }
         }
       }
+
       known.set(key, current);
     }
 

@@ -14,11 +14,36 @@ function clientReturning(players) {
   return () => ({ getPlayers: async () => ({ players }) });
 }
 
-test('playerKey prefers playerId, then userId, then accountName, then name', () => {
+test('playerKey ignores invalid IDs like None or 0 and falls back to accountName/name', () => {
+  assert.equal(playerKey({ playerId: 'None', userId: 'None', accountName: 'Campione', name: 'Campione' }), 'Campione');
   assert.equal(playerKey({ playerId: 'p1', userId: 'u1', accountName: 'a1', name: 'n1' }), 'p1');
-  assert.equal(playerKey({ userId: 'u1', accountName: 'a1', name: 'n1' }), 'u1');
-  assert.equal(playerKey({ accountName: 'a1', name: 'n1' }), 'a1');
-  assert.equal(playerKey({ name: 'n1' }), 'n1');
+});
+
+test('a player connecting with playerId None transitioning to real hex ID does not trigger false leave or rejoin', async () => {
+  const notify = fakeNotify();
+  let players = [{ playerId: 'u1', name: 'Alice' }];
+  const poller = createPlayerPoller({
+    getServers: () => [{ guildId: 'G1', label: 'main', restApiUrl: 'x', restApiPassword: 'x' }],
+    createClient: () => ({ getPlayers: async () => ({ players }) }),
+    notify,
+  });
+
+  await poller.pollOnce(); // seed
+  // Campione connects (loading screen: playerId = None)
+  players = [{ playerId: 'u1', name: 'Alice' }, { playerId: 'None', accountName: 'Campione', name: 'Campione' }];
+  await poller.pollOnce();
+
+  assert.equal(notify.messages.length, 1);
+  assert.equal(notify.messages[0].content.event, 'player.join');
+  assert.equal(notify.messages[0].content.player, 'Campione');
+  assert.equal(notify.messages[0].content.playerId, 'Campione');
+
+  // Campione finishes loading (playerId = 65429BFB...)
+  players = [{ playerId: 'u1', name: 'Alice' }, { playerId: '65429BFB000000000000000000000000', accountName: 'Campione', name: 'Campione' }];
+  await poller.pollOnce();
+
+  // No additional messages should be emitted!
+  assert.equal(notify.messages.length, 1);
 });
 
 test('the first poll seeds state silently -- no join messages for players already online', async () => {
