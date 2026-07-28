@@ -6,7 +6,28 @@
 // our own /save. `expectedActions` (shared with pm2Watcher, keyed
 // `save:${guildId}:${label}` to not collide with its pm2-process-name keys)
 // filters out the ones the bot itself just triggered.
-function createSaveFileWatcher({ getServers, statSync, expectedActions, notify, intervalMs = 15000 }) {
+const fs = require('node:fs');
+const path = require('node:path');
+
+function resolveSaveFilePath(saveFilePath) {
+  if (!saveFilePath) return null;
+  if (fs.existsSync(saveFilePath)) return saveFilePath;
+
+  try {
+    const parentDir = path.dirname(path.dirname(saveFilePath));
+    if (fs.existsSync(parentDir)) {
+      const subdirs = fs.readdirSync(parentDir);
+      for (const subdir of subdirs) {
+        const candidate = path.join(parentDir, subdir, 'Level.sav');
+        if (fs.existsSync(candidate)) return candidate;
+      }
+    }
+  } catch {}
+
+  return saveFilePath;
+}
+
+function createSaveFileWatcher({ getServers, statSync = fs.statSync, expectedActions, notify, intervalMs = 15000 }) {
   const known = new Map(); // `${guildId}:${label}` -> last mtimeMs
 
   function pollOnce() {
@@ -17,9 +38,10 @@ function createSaveFileWatcher({ getServers, statSync, expectedActions, notify, 
       const key = `${server.guildId}:${server.label}`;
       activeKeys.add(key);
 
+      const targetPath = resolveSaveFilePath(server.saveFilePath);
       let mtimeMs;
       try {
-        mtimeMs = statSync(server.saveFilePath).mtimeMs;
+        mtimeMs = statSync(targetPath).mtimeMs;
       } catch {
         continue; // file missing / transient read error this cycle -- skip
       }
@@ -51,4 +73,4 @@ function createSaveFileWatcher({ getServers, statSync, expectedActions, notify, 
   return { start, pollOnce };
 }
 
-module.exports = { createSaveFileWatcher };
+module.exports = { createSaveFileWatcher, resolveSaveFilePath };
