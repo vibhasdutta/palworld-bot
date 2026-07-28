@@ -9,11 +9,10 @@ function parseOptionSettings(iniContent) {
   const map = new Map();
   if (!iniContent) return map;
 
-  const prefix = 'OptionSettings=(';
-  const startIndex = iniContent.indexOf(prefix);
-  if (startIndex === -1) return map;
+  const match = iniContent.match(/OptionSettings\s*=\s*\(/i);
+  if (!match) return map;
 
-  const contentStartIndex = startIndex + prefix.length;
+  const contentStartIndex = match.index + match[0].length;
   // OptionSettings is supposed to end with a parenthesis, so let's find the closing parenthesis of the overall block.
   let contentEndIndex = iniContent.lastIndexOf(')');
   if (contentEndIndex <= contentStartIndex) {

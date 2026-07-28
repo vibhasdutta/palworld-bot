@@ -63,6 +63,15 @@ function escapeHtml(str) {
   }[tag]));
 }
 
+function safeJsonForScript(obj) {
+  return JSON.stringify(obj || {})
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/\//g, '\\u002f')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
+}
+
 const ERROR_TEMPLATE = (title, message) => `
 <!DOCTYPE html>
 <html lang="en">
@@ -374,9 +383,9 @@ const HTML_TEMPLATE = (user, serverName, serverLabel, settings, schema, categori
       }
     }
 
-    const INITIAL_SETTINGS = ${JSON.stringify(settings)};
-    const SCHEMA = ${JSON.stringify(schema)};
-    const CATEGORIES = ${JSON.stringify(categories)};
+    const INITIAL_SETTINGS = ${safeJsonForScript(settings)};
+    const SCHEMA = ${safeJsonForScript(schema)};
+    const CATEGORIES = ${safeJsonForScript(categories)};
     
     let currentSettings = { ...INITIAL_SETTINGS };
     let originalSettings = { ...INITIAL_SETTINGS };
