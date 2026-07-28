@@ -44,7 +44,7 @@ function createPlayerPoller({ getServers, createClient, notify, intervalMs = 200
               playerId: id,
               status: 'joined',
               level: 'join',
-              msg: `${name} joined ${server.label}`,
+              msg: `**${name}** (Player ID: \`${id}\`) joined ${server.label}`,
             }).catch(() => {});
           }
         }
@@ -57,7 +57,7 @@ function createPlayerPoller({ getServers, createClient, notify, intervalMs = 200
               playerId: id,
               status: 'left',
               level: 'leave',
-              msg: `${name} left ${server.label}`,
+              msg: `**${name}** (Player ID: \`${id}\`) left ${server.label}`,
             }).catch(() => {});
           }
         }

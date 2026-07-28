@@ -18,11 +18,11 @@ function findGuildChannels(channels, guildId) {
 }
 
 function actorLabel(entry) {
-  return entry.actorId ? `${entry.actor} (${entry.actorId})` : entry.actor;
+  return entry.actorId ? `${entry.actor} (Discord ID: ${entry.actorId})` : entry.actor;
 }
 
 function actorMention(entry) {
-  return entry.actorId ? `<@${entry.actorId}>` : `**${entry.actor}**`;
+  return entry.actorId ? `<@${entry.actorId}> (${entry.actor || 'User'} - ID: \`${entry.actorId}\`)` : `**${entry.actor}**`;
 }
 
 function formatAuditEntry(entry) {
@@ -36,6 +36,7 @@ function formatAuditEntry(entry) {
     level,
     command: entry.command,
     actor: actorName,
+    actorId: entry.actorId,
     description: '',
   };
 
@@ -43,11 +44,11 @@ function formatAuditEntry(entry) {
     case 'announce':
       return { ...base, message: entry.message, description: `${actor} announced: "${entry.message}"` };
     case 'kick':
-      return { ...base, target: entry.target, reason: entry.reason, description: `${actor} kicked \`${entry.target}\` — ${entry.reason}` };
+      return { ...base, target: entry.target, reason: entry.reason, description: `${actor} kicked \`${entry.target}\` (Player ID: \`${entry.target}\`) — ${entry.reason}` };
     case 'ban':
-      return { ...base, target: entry.target, reason: entry.reason, description: `${actor} banned \`${entry.target}\` — ${entry.reason}` };
+      return { ...base, target: entry.target, reason: entry.reason, description: `${actor} banned \`${entry.target}\` (Player ID: \`${entry.target}\`) — ${entry.reason}` };
     case 'unban':
-      return { ...base, target: entry.target, description: `${actor} unbanned \`${entry.target}\`` };
+      return { ...base, target: entry.target, description: `${actor} unbanned \`${entry.target}\` (Player ID: \`${entry.target}\`)` };
     case 'save':
       return { ...base, description: `${actor} saved the world` };
     case 'start':
@@ -58,7 +59,7 @@ function formatAuditEntry(entry) {
       return { ...base, force: !!entry.force, description: `${actor} stopped the server${entry.force ? ' (force)' : ''}` };
     case 'operator': {
       const verb = entry.action.startsWith('add') ? 'granted operator to' : 'revoked operator from';
-      const mention = entry.targetType === 'role' ? `<@&${entry.target}>` : `<@${entry.target}>`;
+      const mention = entry.targetType === 'role' ? `<@&${entry.target}>` : `<@${entry.target}> (ID: \`${entry.target}\`)`;
       return {
         ...base,
         action: entry.action,

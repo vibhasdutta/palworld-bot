@@ -57,7 +57,7 @@ test('a new player on the second poll is reported as joined', async () => {
         playerId: 'u2',
         status: 'joined',
         level: 'join',
-        msg: 'Bob joined main',
+        msg: '**Bob** (Player ID: `u2`) joined main',
       },
     },
   ]);
@@ -86,7 +86,7 @@ test('a player missing on the second poll is reported as left', async () => {
         playerId: 'u2',
         status: 'left',
         level: 'leave',
-        msg: 'Bob left main',
+        msg: '**Bob** (Player ID: `u2`) left main',
       },
     },
   ]);
