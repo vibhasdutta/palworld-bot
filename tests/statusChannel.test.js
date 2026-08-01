@@ -22,11 +22,11 @@ test('slugForChannel lowercases, hyphenates, and strips characters Discord chann
   assert.equal(slugForChannel(''), 'server');
 });
 
-test('guildChannelNameFor renders a plain online/total count, no emoji or brackets', () => {
-  assert.equal(guildChannelNameFor(1, 2), '1-2-servers-status');
-  assert.equal(guildChannelNameFor(0, 2), '0-2-servers-status');
-  assert.equal(guildChannelNameFor(2, 2), '2-2-servers-status');
-  assert.equal(guildChannelNameFor(0, 0), '0-0-servers-status');
+test('guildChannelNameFor renders an online/total count in the requested bracket style, no emoji', () => {
+  assert.equal(guildChannelNameFor(1, 2), '⌈1⇋2⌋-servers');
+  assert.equal(guildChannelNameFor(0, 2), '⌈0⇋2⌋-servers');
+  assert.equal(guildChannelNameFor(2, 2), '⌈2⇋2⌋-servers');
+  assert.equal(guildChannelNameFor(0, 0), '⌈0⇋0⌋-servers');
 });
 
 test('getServerDisplayName prefers the ini ServerName, then falls back to the config label', () => {
@@ -137,7 +137,7 @@ test('tick edits both messages per server in an already-configured guild channel
     { guildId: 'G1', statusChannelId: 'C1', servers: [{ label: 'main', pm2ProcessName: 'palworld' }] },
   ]));
 
-  const channel = fakeChannel('C1', '0-1-servers-status');
+  const channel = fakeChannel('C1', '⌈0⇋1⌋-servers');
   const client = {
     guilds: { cache: { get: (guildId) => guildId === 'G1' ? { channels: { fetch: (id) => id === 'C1' ? Promise.resolve(channel) : Promise.reject(new Error('not found')) } } : undefined } },
   };
@@ -157,8 +157,8 @@ test('tick edits both messages per server in an already-configured guild channel
   assert.equal(state.length, 1);
   assert.ok(state[0].statusMessageId);
   assert.ok(state[0].playersMessageId);
-  assert.equal(channel.renamed.length, 1); // first tick: unset -> "1-1" triggers one rename
-  assert.equal(channel.renamed[0], '1-1-servers-status');
+  assert.equal(channel.renamed.length, 1); // first tick: unset -> "1/1" triggers one rename
+  assert.equal(channel.renamed[0], '⌈1⇋1⌋-servers');
 
   await manager.tick();
   assert.equal(channel.renamed.length, 1, 'no repeat rename once the count is unchanged and the name already matches');
@@ -174,7 +174,7 @@ test('tick puts every server in a guild into the SAME channel with one message p
     { guildId: 'G1', statusChannelId: 'C1', servers: [{ label: 'main' }, { label: 'creative' }] },
   ]));
 
-  const channel = fakeChannel('C1', '0-2-servers-status');
+  const channel = fakeChannel('C1', '⌈0⇋2⌋-servers');
   const client = { guilds: { cache: { get: () => ({ channels: { fetch: (id) => id === 'C1' ? Promise.resolve(channel) : Promise.reject(new Error('nf')) } }) } } };
 
   const manager = createStatusChannelManager({
@@ -198,7 +198,7 @@ test('tick puts every server in a guild into the SAME channel with one message p
   const state = JSON.parse(fs.readFileSync(statePath, 'utf8'));
   assert.equal(state.length, 2); // one status/players message pair per server
   assert.deepEqual(state.map((e) => e.label).sort(), ['creative', 'main']);
-  assert.equal(channel.renamed[0], '2-2-servers-status'); // both servers online
+  assert.equal(channel.renamed[0], '⌈2⇋2⌋-servers'); // both servers online
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
@@ -236,7 +236,7 @@ test('tick creates a channel and persists its ID to servers.json when none is co
   await manager.tick();
 
   assert.ok(created, 'a channel should have been created');
-  assert.equal(created.name, '0-1-servers-status');
+  assert.equal(created.name, '⌈0⇋1⌋-servers');
 
   const servers = JSON.parse(fs.readFileSync(serversPath, 'utf8'));
   assert.equal(servers[0].statusChannelId, 'NEW1');

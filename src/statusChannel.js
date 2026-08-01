@@ -20,11 +20,8 @@ function slugForChannel(name) {
   return name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'server';
 }
 
-// Discord channel names can't contain "/" or brackets reliably -- "1-2"
-// instead of "[1/2]" reads the same info without relying on characters
-// Discord silently strips.
 function guildChannelNameFor(onlineCount, total) {
-  return `${onlineCount}-${total}-servers-status`;
+  return `⌈${onlineCount}⇋${total}⌋-servers`;
 }
 
 // The ini's own ServerName is always on disk whether the process is running
