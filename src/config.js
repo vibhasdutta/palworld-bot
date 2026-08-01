@@ -64,6 +64,12 @@ function normalizeServer(server) {
     // for that password, so it can never drift out of sync with a copy
     // pasted into servers.json again.
     settingsFilePath: server.settingsFilePath || null,
+    // Optional: a channel this server's live status dashboard (two
+    // auto-updating messages: server status, connected players) should live
+    // in. Left unset, statusChannel.js creates one itself and writes the
+    // resulting ID back here via mutateGuildServer -- the human only ever
+    // needs to *edit* this to point at a different existing channel.
+    statusChannelId: server.statusChannelId || null,
   };
 }
 
@@ -188,6 +194,23 @@ function mutateGuildRoles(rolesPath, guildId, mutate) {
   return entry;
 }
 
+// Reads servers.json, applies `mutate` to one guild's one server entry (by
+// label), and writes the result straight back. Used by statusChannel.js to
+// persist an auto-created status channel's ID without hand-editing the file.
+// Unlike mutateGuildRoles, this doesn't create missing entries -- a server
+// must already be configured (label, pm2ProcessName, etc.) before it can
+// have a status channel.
+function mutateGuildServer(serversPath, guildId, label, mutate) {
+  const servers = readJsonArray(serversPath);
+  const entry = servers.find((s) => s.guildId === guildId);
+  if (!entry) return null;
+  const server = entry.servers.find((s) => s.label === label);
+  if (!server) return null;
+  mutate(server);
+  writeJsonArray(serversPath, servers);
+  return server;
+}
+
 function loadConfig(env = process.env) {
   const configDir = env.CONFIG_DIR || path.join(__dirname, '..', 'config');
   const guildsPath = env.GUILDS_CONFIG_PATH || path.join(configDir, 'guilds.json');
@@ -223,4 +246,5 @@ module.exports = {
   resolveServerConnection,
   ensureGuildEntry,
   mutateGuildRoles,
+  mutateGuildServer,
 };

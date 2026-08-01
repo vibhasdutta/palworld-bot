@@ -25,6 +25,7 @@ const { createExpectedActions } = require('./expectedActions');
 const { watchPm2 } = require('./pm2Watcher');
 const { createPlayerPoller } = require('./playerPoller');
 const { createSaveFileWatcher } = require('./saveFileWatcher');
+const { createStatusChannelManager } = require('./statusChannel');
 const loadCommands = require('./commands');
 const { createWebServer } = require('./webServer');
 
@@ -238,6 +239,18 @@ const saveFileWatcher = createSaveFileWatcher({
   notify,
 });
 
+// Live status dashboard channel per server: two auto-updating messages
+// (status, players) plus a channel name reflecting online/starting/offline.
+// Auto-creates the channel and persists its ID back to servers.json when
+// none is configured yet, or the configured one has been deleted.
+const statusChannelManager = createStatusChannelManager({
+  client,
+  getServers: () => allCompleteServers(config.servers).map((s) => ({ ...s, ...resolveServerConnection(s) })),
+  createClient: createPalworldClient,
+  serversPath: config.serversPath,
+  statePath: path.join(path.dirname(config.auditLogPath), 'statusChannels.json'),
+});
+
 client.once(Events.ClientReady, async (readyClient) => {
   console.log(`Logged in as ${readyClient.user.tag}`);
   for (const guild of readyClient.guilds.cache.values()) {
@@ -245,6 +258,7 @@ client.once(Events.ClientReady, async (readyClient) => {
   }
   playerPoller.start();
   saveFileWatcher.start();
+  statusChannelManager.start();
   webServer.start();
 });
 

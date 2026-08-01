@@ -64,7 +64,7 @@ test('loadServersFile parses a guild\'s server list and defaults missing fields 
   ]));
 
   assert.deepEqual(loadServersFile(serversPath), [
-    { guildId: 'G1', servers: [{ label: 'main', restApiUrl: 'http://localhost:8212', restApiPassword: null, pm2ProcessName: null, saveFilePath: null, settingsFilePath: null }] },
+    { guildId: 'G1', servers: [{ label: 'main', restApiUrl: 'http://localhost:8212', restApiPassword: null, pm2ProcessName: null, saveFilePath: null, settingsFilePath: null, statusChannelId: null }] },
   ]);
   fs.rmSync(dir, { recursive: true, force: true });
 });
