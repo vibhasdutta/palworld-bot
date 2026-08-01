@@ -9,7 +9,7 @@ const {
   buildPlayersPayload,
   getServerDisplayName,
   slugForChannel,
-  channelNameFor,
+  guildChannelNameFor,
 } = require('../src/statusChannel');
 
 function tmpDir() {
@@ -22,20 +22,20 @@ test('slugForChannel lowercases, hyphenates, and strips characters Discord chann
   assert.equal(slugForChannel(''), 'server');
 });
 
-test('channelNameFor composes emoji-status-slug-status per state', () => {
-  assert.equal(channelNameFor('online', 'Isle of Palcadia'), '🟢-status-isle-of-palcadia-status');
-  assert.equal(channelNameFor('starting', 'Isle of Palcadia'), '🟡-status-isle-of-palcadia-status');
-  assert.equal(channelNameFor('offline', 'Isle of Palcadia'), '🔴-status-isle-of-palcadia-status');
+test('guildChannelNameFor renders a plain online/total count, no emoji or brackets', () => {
+  assert.equal(guildChannelNameFor(1, 2), '1-2-servers-status');
+  assert.equal(guildChannelNameFor(0, 2), '0-2-servers-status');
+  assert.equal(guildChannelNameFor(2, 2), '2-2-servers-status');
+  assert.equal(guildChannelNameFor(0, 0), '0-0-servers-status');
 });
 
-test('getServerDisplayName prefers the live REST name, then the ini ServerName, then the config label', () => {
+test('getServerDisplayName prefers the ini ServerName, then falls back to the config label', () => {
   const dir = tmpDir();
   const iniPath = path.join(dir, 'PalWorldSettings.ini');
   fs.writeFileSync(iniPath, '[/Script/Pal.PalGameWorldSettings]\nOptionSettings=(ServerName="Isle of Palcadia")\n');
 
-  assert.equal(getServerDisplayName({ label: 'main', settingsFilePath: iniPath }, 'Live Name'), 'Live Name');
-  assert.equal(getServerDisplayName({ label: 'main', settingsFilePath: iniPath }, null), 'Isle of Palcadia');
-  assert.equal(getServerDisplayName({ label: 'main', settingsFilePath: null }, null), 'main');
+  assert.equal(getServerDisplayName({ label: 'main', settingsFilePath: iniPath }), 'Isle of Palcadia');
+  assert.equal(getServerDisplayName({ label: 'main', settingsFilePath: null }), 'main');
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
@@ -46,11 +46,10 @@ test('buildStatusPayload returns an online embed when the REST API is reachable'
     getMetrics: async () => ({ maxplayernum: 32, days: 5, serverfps: 60, serverframetime: 16.6, uptime: 3665 }),
   };
 
-  const { state, serverName, embed } = await buildStatusPayload(palworld, 'online');
+  const { state, embed } = await buildStatusPayload(palworld, 'online', 'Isle of Palcadia');
 
   assert.equal(state, 'online');
-  assert.equal(serverName, 'Isle of Palcadia');
-  assert.equal(embed.data.title, '🟢 Server Online');
+  assert.equal(embed.data.title, 'Isle of Palcadia — Online');
   assert.ok(embed.data.fields.some((f) => f.name === 'Players' && f.value === '1/32'));
 });
 
@@ -63,34 +62,33 @@ function unreachablePalworld() {
 }
 
 test('buildStatusPayload returns starting when REST is unreachable but pm2 reports online', async () => {
-  const { state, embed } = await buildStatusPayload(unreachablePalworld(), 'online');
+  const { state, embed } = await buildStatusPayload(unreachablePalworld(), 'online', 'main');
   assert.equal(state, 'starting');
-  assert.equal(embed.data.title, '🟡 Server Starting');
+  assert.equal(embed.data.title, 'main — Starting');
 });
 
 test('buildStatusPayload returns offline when REST is unreachable and pm2 is not online', async () => {
-  const { state, embed } = await buildStatusPayload(unreachablePalworld(), 'stopped');
+  const { state, embed } = await buildStatusPayload(unreachablePalworld(), 'stopped', 'main');
   assert.equal(state, 'offline');
-  assert.equal(embed.data.title, '🔴 Server Offline');
+  assert.equal(embed.data.title, 'main — Offline');
 });
 
 test('buildPlayersPayload renders a two-column name/ID table when players are connected', async () => {
   const palworld = { getPlayers: async () => ({ players: [{ name: 'Alice', playerId: 'steam_1' }, { name: 'Bob', playerId: 'steam_2' }] }) };
-  const embed = await buildPlayersPayload(palworld);
-  assert.equal(embed.data.title, '👥 Connected Players (2)');
+  const embed = await buildPlayersPayload(palworld, 'main');
+  assert.equal(embed.data.title, 'main — Players (2)');
   assert.equal(embed.data.fields[0].value, 'Alice\nBob');
   assert.equal(embed.data.fields[1].value, 'steam_1\nsteam_2');
 });
 
 test('buildPlayersPayload shows a friendly empty state with zero players', async () => {
   const palworld = { getPlayers: async () => ({ players: [] }) };
-  const embed = await buildPlayersPayload(palworld);
+  const embed = await buildPlayersPayload(palworld, 'main');
   assert.equal(embed.data.description, 'No players connected.');
 });
 
 test('buildPlayersPayload degrades gracefully when the server is unreachable', async () => {
-  const palworld = { getPlayers: async () => { throw new Error('unreachable'); } };
-  const embed = await buildPlayersPayload(palworld);
+  const embed = await buildPlayersPayload(unreachablePalworld(), 'main');
   assert.equal(embed.data.description, 'Unavailable -- server unreachable.');
 });
 
@@ -122,40 +120,32 @@ function fakeChannel(id, name) {
   };
 }
 
-function fakeClient(channelsByGuild) {
+function reachablePalworld(overrides = {}) {
   return {
-    guilds: {
-      cache: {
-        get: (guildId) => channelsByGuild[guildId] ? {
-          channels: {
-            fetch: (id) => channelsByGuild[guildId].id === id ? Promise.resolve(channelsByGuild[guildId]) : Promise.reject(new Error('not found')),
-            create: () => Promise.reject(new Error('should not create -- channel already configured')),
-          },
-        } : undefined,
-      },
-    },
+    getInfo: async () => ({ servername: 'main', version: '1.0' }),
+    getPlayers: async () => ({ players: [] }),
+    getMetrics: async () => ({ maxplayernum: 32, days: 1, serverfps: 60, serverframetime: 16, uptime: 60 }),
+    ...overrides,
   };
 }
 
-test('tick edits the two tracked messages in an already-configured channel without recreating it', async () => {
+test('tick edits both messages per server in an already-configured guild channel without recreating it', async () => {
   const dir = tmpDir();
   const serversPath = path.join(dir, 'servers.json');
   const statePath = path.join(dir, 'statusChannels.json');
   fs.writeFileSync(serversPath, JSON.stringify([
-    { guildId: 'G1', servers: [{ label: 'main', pm2ProcessName: 'palworld', statusChannelId: 'C1' }] },
+    { guildId: 'G1', statusChannelId: 'C1', servers: [{ label: 'main', pm2ProcessName: 'palworld' }] },
   ]));
 
-  const channel = fakeChannel('C1', '🔴-status-main-status');
-  const client = fakeClient({ G1: channel });
+  const channel = fakeChannel('C1', '0-1-servers-status');
+  const client = {
+    guilds: { cache: { get: (guildId) => guildId === 'G1' ? { channels: { fetch: (id) => id === 'C1' ? Promise.resolve(channel) : Promise.reject(new Error('not found')) } } : undefined } },
+  };
 
   const manager = createStatusChannelManager({
     client,
-    getServers: () => [{ guildId: 'G1', label: 'main', pm2ProcessName: 'palworld', statusChannelId: 'C1', restApiUrl: 'x', restApiPassword: 'x' }],
-    createClient: () => ({
-      getInfo: async () => ({ servername: 'main', version: '1.0' }),
-      getPlayers: async () => ({ players: [] }),
-      getMetrics: async () => ({ maxplayernum: 32, days: 1, serverfps: 60, serverframetime: 16, uptime: 60 }),
-    }),
+    getGuildGroups: () => [{ guildId: 'G1', statusChannelId: 'C1', servers: [{ guildId: 'G1', label: 'main', pm2ProcessName: 'palworld', restApiUrl: 'x', restApiPassword: 'x' }] }],
+    createClient: () => reachablePalworld(),
     serversPath,
     statePath,
     getPm2Status: async () => 'online',
@@ -167,12 +157,48 @@ test('tick edits the two tracked messages in an already-configured channel witho
   assert.equal(state.length, 1);
   assert.ok(state[0].statusMessageId);
   assert.ok(state[0].playersMessageId);
-  assert.equal(channel.renamed.length, 1); // first tick: unknown -> online triggers one rename
-  assert.equal(channel.renamed[0], '🟢-status-main-status');
+  assert.equal(channel.renamed.length, 1); // first tick: unset -> "1-1" triggers one rename
+  assert.equal(channel.renamed[0], '1-1-servers-status');
 
   await manager.tick();
-  assert.equal(channel.renamed.length, 1, 'no repeat rename once state is unchanged and name already matches');
+  assert.equal(channel.renamed.length, 1, 'no repeat rename once the count is unchanged and the name already matches');
 
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('tick puts every server in a guild into the SAME channel with one message pair each', async () => {
+  const dir = tmpDir();
+  const serversPath = path.join(dir, 'servers.json');
+  const statePath = path.join(dir, 'statusChannels.json');
+  fs.writeFileSync(serversPath, JSON.stringify([
+    { guildId: 'G1', statusChannelId: 'C1', servers: [{ label: 'main' }, { label: 'creative' }] },
+  ]));
+
+  const channel = fakeChannel('C1', '0-2-servers-status');
+  const client = { guilds: { cache: { get: () => ({ channels: { fetch: (id) => id === 'C1' ? Promise.resolve(channel) : Promise.reject(new Error('nf')) } }) } } };
+
+  const manager = createStatusChannelManager({
+    client,
+    getGuildGroups: () => [{
+      guildId: 'G1',
+      statusChannelId: 'C1',
+      servers: [
+        { guildId: 'G1', label: 'main', pm2ProcessName: 'palworld', restApiUrl: 'x', restApiPassword: 'x' },
+        { guildId: 'G1', label: 'creative', pm2ProcessName: 'palworld2', restApiUrl: 'x', restApiPassword: 'x' },
+      ],
+    }],
+    createClient: () => reachablePalworld(),
+    serversPath,
+    statePath,
+    getPm2Status: async () => 'online',
+  });
+
+  await manager.tick();
+
+  const state = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+  assert.equal(state.length, 2); // one status/players message pair per server
+  assert.deepEqual(state.map((e) => e.label).sort(), ['creative', 'main']);
+  assert.equal(channel.renamed[0], '2-2-servers-status'); // both servers online
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
@@ -181,7 +207,7 @@ test('tick creates a channel and persists its ID to servers.json when none is co
   const serversPath = path.join(dir, 'servers.json');
   const statePath = path.join(dir, 'statusChannels.json');
   fs.writeFileSync(serversPath, JSON.stringify([
-    { guildId: 'G1', servers: [{ label: 'main', pm2ProcessName: 'palworld', statusChannelId: null }] },
+    { guildId: 'G1', statusChannelId: null, servers: [{ label: 'main', pm2ProcessName: 'palworld' }] },
   ]));
 
   let created = null;
@@ -200,7 +226,7 @@ test('tick creates a channel and persists its ID to servers.json when none is co
 
   const manager = createStatusChannelManager({
     client,
-    getServers: () => [{ guildId: 'G1', label: 'main', pm2ProcessName: 'palworld', statusChannelId: null, restApiUrl: 'x', restApiPassword: 'x' }],
+    getGuildGroups: () => [{ guildId: 'G1', statusChannelId: null, servers: [{ guildId: 'G1', label: 'main', pm2ProcessName: 'palworld', restApiUrl: 'x', restApiPassword: 'x' }] }],
     createClient: unreachablePalworld,
     serversPath,
     statePath,
@@ -210,10 +236,10 @@ test('tick creates a channel and persists its ID to servers.json when none is co
   await manager.tick();
 
   assert.ok(created, 'a channel should have been created');
-  assert.equal(created.name, '🔴-status-main-status');
+  assert.equal(created.name, '0-1-servers-status');
 
   const servers = JSON.parse(fs.readFileSync(serversPath, 'utf8'));
-  assert.equal(servers[0].servers[0].statusChannelId, 'NEW1');
+  assert.equal(servers[0].statusChannelId, 'NEW1');
 
   fs.rmSync(dir, { recursive: true, force: true });
 });

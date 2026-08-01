@@ -1,35 +1,35 @@
-// Live status dashboard: one auto-updating channel per configured server,
-// containing exactly two messages (server status, connected players) that
-// get edited in place on a fixed interval, plus a channel name that reflects
-// online/starting/offline. If no channel is configured yet, or a configured
-// channel/message has been deleted, one is (re)created automatically and the
-// new ID is written back to servers.json -- the human only ever has to *edit*
-// config/servers.json afterward to point at a different existing channel.
+// Live status dashboard: one auto-updating channel per guild, holding a
+// status+players message pair for every server that guild owns (edited in
+// place on a fixed interval, not reposted), plus a channel name showing how
+// many of the guild's servers are currently online. If no channel is
+// configured yet, or a configured channel/message has been deleted, one is
+// (re)created automatically and the new ID is written back to
+// config/servers.json -- the human only ever has to *edit* that file
+// afterward to point at a different existing channel.
 const fs = require('node:fs');
 const path = require('node:path');
 const { EmbedBuilder, ChannelType } = require('discord.js');
 const pm2 = require('pm2');
-const { mutateGuildServer } = require('./config');
+const { mutateGuildEntry } = require('./config');
 const { readWorldSettings } = require('./worldSettingsParser');
 const { cleanPlayerId } = require('./playerPoller');
 
 const COLORS = { online: 0x16a34a, starting: 0xd97706, offline: 0xdc2626 };
-const EMOJI = { online: '🟢', starting: '🟡', offline: '🔴' };
 
 function slugForChannel(name) {
   return name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'server';
 }
 
-function channelNameFor(state, displayName) {
-  return `${EMOJI[state]}-status-${slugForChannel(displayName)}-status`;
+// Discord channel names can't contain "/" or brackets reliably -- "1-2"
+// instead of "[1/2]" reads the same info without relying on characters
+// Discord silently strips.
+function guildChannelNameFor(onlineCount, total) {
+  return `${onlineCount}-${total}-servers-status`;
 }
 
-// REST /v1/api/info is the freshest source for the live server name, but
-// it's only reachable while the process is actually up -- fall back to the
-// ini's own ServerName (always on disk, running or not), then the config
-// label as a last resort.
-function getServerDisplayName(server, liveServerName) {
-  if (liveServerName) return liveServerName;
+// The ini's own ServerName is always on disk whether the process is running
+// or not; falls back to the config label if even that's unavailable.
+function getServerDisplayName(server) {
   if (server.settingsFilePath) {
     try {
       const { settings } = readWorldSettings(server.settingsFilePath);
@@ -56,46 +56,44 @@ function defaultGetPm2Status(pm2ProcessName) {
   });
 }
 
-// Builds both the status embed and resolves this poll's state
+// Builds the status embed for one server and resolves its state
 // ('online'/'starting'/'offline') in one shot, since the embed depends on
 // which branch it took. REST reachable -> online. REST unreachable but pm2
 // says the process is up -> starting (booting, not crashed). Anything else
 // -> offline.
-async function buildStatusPayload(palworld, pm2Status) {
+async function buildStatusPayload(palworld, pm2Status, displayName) {
   try {
-    const [info, { players = [] }, metrics] = await Promise.all([
+    const [, { players = [] }, metrics] = await Promise.all([
       palworld.getInfo(),
       palworld.getPlayers(),
       palworld.getMetrics(),
     ]);
     const embed = new EmbedBuilder()
-      .setTitle(`${EMOJI.online} Server Online`)
+      .setTitle(`${displayName} — Online`)
       .setColor(COLORS.online)
       .addFields(
-        { name: 'Server', value: info.servername || 'Palworld', inline: true },
-        { name: 'Version', value: info.version || 'unknown', inline: true },
         { name: 'Players', value: `${players.length}/${metrics.maxplayernum}`, inline: true },
         { name: 'Day', value: `${metrics.days}`, inline: true },
         { name: 'FPS', value: `${metrics.serverfps} (${metrics.serverframetime.toFixed(1)}ms)`, inline: true },
         { name: 'Uptime', value: formatUptime(metrics.uptime), inline: true },
       )
       .setTimestamp();
-    return { state: 'online', serverName: info.servername || null, embed };
+    return { state: 'online', embed };
   } catch {
     const state = pm2Status === 'online' ? 'starting' : 'offline';
     const embed = new EmbedBuilder()
-      .setTitle(state === 'starting' ? `${EMOJI.starting} Server Starting` : `${EMOJI.offline} Server Offline`)
+      .setTitle(state === 'starting' ? `${displayName} — Starting` : `${displayName} — Offline`)
       .setColor(COLORS[state])
       .setDescription(state === 'starting' ? 'Process is up, waiting for the game to finish booting...' : 'The server process is not running.')
       .setTimestamp();
-    return { state, serverName: null, embed };
+    return { state, embed };
   }
 }
 
-async function buildPlayersPayload(palworld) {
+async function buildPlayersPayload(palworld, displayName) {
   try {
     const { players = [] } = await palworld.getPlayers();
-    const embed = new EmbedBuilder().setTitle(`👥 Connected Players (${players.length})`).setColor(0x6366f1).setTimestamp();
+    const embed = new EmbedBuilder().setTitle(`${displayName} — Players (${players.length})`).setColor(0x6366f1).setTimestamp();
     if (players.length === 0) {
       embed.setDescription('No players connected.');
     } else {
@@ -106,7 +104,7 @@ async function buildPlayersPayload(palworld) {
     }
     return embed;
   } catch {
-    return new EmbedBuilder().setTitle('👥 Connected Players').setColor(0x6b7280).setDescription('Unavailable -- server unreachable.').setTimestamp();
+    return new EmbedBuilder().setTitle(`${displayName} — Players`).setColor(0x6b7280).setDescription('Unavailable -- server unreachable.').setTimestamp();
   }
 }
 
@@ -125,14 +123,14 @@ function writeState(statePath, state) {
 
 function createStatusChannelManager({
   client,
-  getServers,
+  getGuildGroups,
   createClient,
   serversPath,
   statePath,
   getPm2Status = defaultGetPm2Status,
   intervalMs = 10000,
 }) {
-  const lastState = new Map(); // `${guildId}:${label}` -> 'online' | 'starting' | 'offline'
+  const lastChannelName = new Map(); // guildId -> last name we set/observed
 
   function getEntry(guildId, label) {
     return readState(statePath).find((e) => e.guildId === guildId && e.label === label) || null;
@@ -152,12 +150,12 @@ function createStatusChannelManager({
   // Configured channel missing, deleted, or never set -- (re)create one and
   // persist the new ID so config/servers.json stays the source of truth the
   // human can hand-edit afterward.
-  async function resolveChannel(server, initialName) {
-    const guild = client.guilds.cache.get(server.guildId);
+  async function resolveGuildChannel(group, initialName) {
+    const guild = client.guilds.cache.get(group.guildId);
     if (!guild) return null;
 
-    if (server.statusChannelId) {
-      const existing = await guild.channels.fetch(server.statusChannelId).catch(() => null);
+    if (group.statusChannelId) {
+      const existing = await guild.channels.fetch(group.statusChannelId).catch(() => null);
       if (existing) return existing;
     }
 
@@ -166,12 +164,12 @@ function createStatusChannelManager({
       type: ChannelType.GuildText,
       reason: 'Palworld live status channel',
     }).catch((err) => {
-      console.error(`statusChannel: failed to create status channel in guild ${server.guildId}:`, err.message);
+      console.error(`statusChannel: failed to create status channel in guild ${group.guildId}:`, err.message);
       return null;
     });
     if (!created) return null;
 
-    mutateGuildServer(serversPath, server.guildId, server.label, (s) => { s.statusChannelId = created.id; });
+    mutateGuildEntry(serversPath, group.guildId, (entry) => { entry.statusChannelId = created.id; });
     return created;
   }
 
@@ -191,33 +189,45 @@ function createStatusChannelManager({
     return msg;
   }
 
+  async function tickGuild(group) {
+    if (group.servers.length === 0) return;
+
+    const results = [];
+    for (const server of group.servers) {
+      const palworld = createClient({ baseUrl: server.restApiUrl, password: server.restApiPassword });
+      const pm2Status = await getPm2Status(server.pm2ProcessName);
+      const displayName = getServerDisplayName(server);
+      const { state, embed: statusEmbed } = await buildStatusPayload(palworld, pm2Status, displayName);
+      const playersEmbed = await buildPlayersPayload(palworld, displayName);
+      results.push({ server, state, statusEmbed, playersEmbed });
+    }
+
+    const onlineCount = results.filter((r) => r.state === 'online').length;
+    const desiredName = guildChannelNameFor(onlineCount, results.length);
+
+    const channel = await resolveGuildChannel(group, desiredName);
+    if (!channel) return;
+
+    for (const r of results) {
+      const statusMsg = await resolveMessage(channel, group.guildId, r.server.label, 'statusMessageId');
+      if (statusMsg) await statusMsg.edit({ content: '', embeds: [r.statusEmbed] }).catch(() => {});
+
+      const playersMsg = await resolveMessage(channel, group.guildId, r.server.label, 'playersMessageId');
+      if (playersMsg) await playersMsg.edit({ content: '', embeds: [r.playersEmbed] }).catch(() => {});
+    }
+
+    if (lastChannelName.get(group.guildId) !== desiredName && channel.name !== desiredName) {
+      await channel.setName(desiredName).catch((err) => console.error(`statusChannel: failed to rename channel for guild ${group.guildId}:`, err.message));
+    }
+    lastChannelName.set(group.guildId, desiredName);
+  }
+
   async function tick() {
-    for (const server of getServers()) {
-      const key = `${server.guildId}:${server.label}`;
+    for (const group of getGuildGroups()) {
       try {
-        const palworld = createClient({ baseUrl: server.restApiUrl, password: server.restApiPassword });
-        const pm2Status = await getPm2Status(server.pm2ProcessName);
-        const { state, serverName, embed: statusEmbed } = await buildStatusPayload(palworld, pm2Status);
-        const displayName = getServerDisplayName(server, serverName);
-
-        const channel = await resolveChannel(server, channelNameFor(state, displayName));
-        if (!channel) continue;
-
-        const playersEmbed = await buildPlayersPayload(palworld);
-
-        const statusMsg = await resolveMessage(channel, server.guildId, server.label, 'statusMessageId');
-        if (statusMsg) await statusMsg.edit({ content: '', embeds: [statusEmbed] }).catch(() => {});
-
-        const playersMsg = await resolveMessage(channel, server.guildId, server.label, 'playersMessageId');
-        if (playersMsg) await playersMsg.edit({ content: '', embeds: [playersEmbed] }).catch(() => {});
-
-        const desiredName = channelNameFor(state, displayName);
-        if (lastState.get(key) !== state && channel.name !== desiredName) {
-          await channel.setName(desiredName).catch((err) => console.error(`statusChannel: failed to rename channel for ${key}:`, err.message));
-        }
-        lastState.set(key, state);
+        await tickGuild(group);
       } catch (err) {
-        console.error(`statusChannel: tick failed for ${key}:`, err.message);
+        console.error(`statusChannel: tick failed for guild ${group.guildId}:`, err.message);
       }
     }
   }
@@ -230,4 +240,11 @@ function createStatusChannelManager({
   return { start, tick };
 }
 
-module.exports = { createStatusChannelManager, buildStatusPayload, buildPlayersPayload, getServerDisplayName, slugForChannel, channelNameFor };
+module.exports = {
+  createStatusChannelManager,
+  buildStatusPayload,
+  buildPlayersPayload,
+  getServerDisplayName,
+  slugForChannel,
+  guildChannelNameFor,
+};

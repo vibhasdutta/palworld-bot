@@ -245,7 +245,11 @@ const saveFileWatcher = createSaveFileWatcher({
 // none is configured yet, or the configured one has been deleted.
 const statusChannelManager = createStatusChannelManager({
   client,
-  getServers: () => allCompleteServers(config.servers).map((s) => ({ ...s, ...resolveServerConnection(s) })),
+  getGuildGroups: () => config.servers.map((entry) => ({
+    guildId: entry.guildId,
+    statusChannelId: entry.statusChannelId,
+    servers: findGuildServers(config.servers, entry.guildId).map((s) => ({ ...s, ...resolveServerConnection(s) })),
+  })),
   createClient: createPalworldClient,
   serversPath: config.serversPath,
   statePath: path.join(path.dirname(config.auditLogPath), 'statusChannels.json'),

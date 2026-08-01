@@ -14,6 +14,7 @@ const {
   resolveServerConnection,
   ensureGuildEntry,
   mutateGuildRoles,
+  mutateGuildEntry,
   loadConfig,
 } = require('../src/config');
 
@@ -64,17 +65,17 @@ test('loadServersFile parses a guild\'s server list and defaults missing fields 
   ]));
 
   assert.deepEqual(loadServersFile(serversPath), [
-    { guildId: 'G1', servers: [{ label: 'main', restApiUrl: 'http://localhost:8212', restApiPassword: null, pm2ProcessName: null, saveFilePath: null, settingsFilePath: null, statusChannelId: null }] },
+    { guildId: 'G1', statusChannelId: null, servers: [{ label: 'main', restApiUrl: 'http://localhost:8212', restApiPassword: null, pm2ProcessName: null, saveFilePath: null, settingsFilePath: null }] },
   ]);
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-test('loadServersFile defaults servers to [] when missing or malformed', () => {
+test('loadServersFile defaults servers to [] and statusChannelId to null when missing or malformed', () => {
   const dir = tmpConfigDir();
   const serversPath = path.join(dir, 'servers.json');
   fs.writeFileSync(serversPath, JSON.stringify([{ guildId: 'G1' }]));
 
-  assert.deepEqual(loadServersFile(serversPath), [{ guildId: 'G1', servers: [] }]);
+  assert.deepEqual(loadServersFile(serversPath), [{ guildId: 'G1', statusChannelId: null, servers: [] }]);
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
@@ -173,7 +174,7 @@ test('ensureGuildEntry registers a new guild across all four files with empty de
     { guildId: 'G1', admin: { roleIds: [], userIds: [] }, operator: { roleIds: [], userIds: [] }, common: { roleIds: [], userIds: [] } },
   ]);
   assert.deepEqual(loadChannelsFile(channelsPath), [{ guildId: 'G1', botChannelId: null, serverChannelId: null }]);
-  assert.deepEqual(loadServersFile(serversPath), [{ guildId: 'G1', servers: [] }]);
+  assert.deepEqual(loadServersFile(serversPath), [{ guildId: 'G1', statusChannelId: null, servers: [] }]);
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
@@ -216,6 +217,30 @@ test('mutateGuildRoles creates the guild entry if it does not exist yet', () => 
   assert.deepEqual(loadRolesFile(rolesPath), [
     { guildId: 'NEW', admin: { roleIds: [], userIds: [] }, operator: { roleIds: [], userIds: ['U1'] }, common: { roleIds: [], userIds: [] } },
   ]);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('mutateGuildEntry sets a field on an existing guild\'s servers.json entry and persists it', () => {
+  const dir = tmpConfigDir();
+  const serversPath = path.join(dir, 'servers.json');
+  fs.writeFileSync(serversPath, JSON.stringify([{ guildId: 'G1', statusChannelId: null, servers: [] }]));
+
+  const entry = mutateGuildEntry(serversPath, 'G1', (e) => { e.statusChannelId = 'C1'; });
+
+  assert.equal(entry.statusChannelId, 'C1');
+  assert.equal(loadServersFile(serversPath)[0].statusChannelId, 'C1');
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('mutateGuildEntry returns null and does not create an entry for an unregistered guild', () => {
+  const dir = tmpConfigDir();
+  const serversPath = path.join(dir, 'servers.json');
+  fs.writeFileSync(serversPath, JSON.stringify([]));
+
+  const entry = mutateGuildEntry(serversPath, 'UNKNOWN', (e) => { e.statusChannelId = 'C1'; });
+
+  assert.equal(entry, null);
+  assert.deepEqual(loadServersFile(serversPath), []);
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
