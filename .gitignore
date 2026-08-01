@@ -2,4 +2,4 @@ node_modules/
 .env
 scrape/
 data/
-config/guilds.json
+config/

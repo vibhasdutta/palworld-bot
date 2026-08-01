@@ -6,7 +6,6 @@ const path = require('node:path');
 const {
   loadGuildsFile,
   loadRolesFile,
-  loadChannelsFile,
   loadServersFile,
   findGuildServer,
   findGuildServers,
@@ -46,17 +45,6 @@ test('loadRolesFile reads roleIds/userIds per tier and defaults missing fields t
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-test('loadChannelsFile defaults missing channel IDs to null', () => {
-  const dir = tmpConfigDir();
-  const channelsPath = path.join(dir, 'channels.json');
-  fs.writeFileSync(channelsPath, JSON.stringify([{ guildId: 'G1', botChannelId: '123' }]));
-
-  assert.deepEqual(loadChannelsFile(channelsPath), [
-    { guildId: 'G1', botChannelId: '123', serverChannelId: null },
-  ]);
-  fs.rmSync(dir, { recursive: true, force: true });
-});
-
 test('loadServersFile parses a guild\'s server list and defaults missing fields to null', () => {
   const dir = tmpConfigDir();
   const serversPath = path.join(dir, 'servers.json');
@@ -65,17 +53,17 @@ test('loadServersFile parses a guild\'s server list and defaults missing fields 
   ]));
 
   assert.deepEqual(loadServersFile(serversPath), [
-    { guildId: 'G1', statusChannelId: null, servers: [{ label: 'main', restApiUrl: 'http://localhost:8212', restApiPassword: null, pm2ProcessName: null, saveFilePath: null, settingsFilePath: null }] },
+    { guildId: 'G1', statusChannelId: null, logChannelId: null, servers: [{ label: 'main', restApiUrl: 'http://localhost:8212', restApiPassword: null, pm2ProcessName: null, saveFilePath: null, settingsFilePath: null }] },
   ]);
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-test('loadServersFile defaults servers to [] and statusChannelId to null when missing or malformed', () => {
+test('loadServersFile defaults servers to [] and statusChannelId/logChannelId to null when missing or malformed', () => {
   const dir = tmpConfigDir();
   const serversPath = path.join(dir, 'servers.json');
   fs.writeFileSync(serversPath, JSON.stringify([{ guildId: 'G1' }]));
 
-  assert.deepEqual(loadServersFile(serversPath), [{ guildId: 'G1', statusChannelId: null, servers: [] }]);
+  assert.deepEqual(loadServersFile(serversPath), [{ guildId: 'G1', statusChannelId: null, logChannelId: null, servers: [] }]);
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
@@ -159,22 +147,20 @@ test('resolveServerConnection falls back to stored values if the ini can\'t be r
   assert.deepEqual(resolveServerConnection(server, readFileSync), { restApiUrl: 'http://localhost:8212', restApiPassword: 'stored-pw' });
 });
 
-test('ensureGuildEntry registers a new guild across all four files with empty defaults', () => {
+test('ensureGuildEntry registers a new guild across all three files with empty defaults', () => {
   const dir = tmpConfigDir();
   const guildsPath = path.join(dir, 'guilds.json');
   const rolesPath = path.join(dir, 'roles.json');
-  const channelsPath = path.join(dir, 'channels.json');
   const serversPath = path.join(dir, 'servers.json');
 
-  const added = ensureGuildEntry(guildsPath, rolesPath, channelsPath, serversPath, 'G1');
+  const added = ensureGuildEntry(guildsPath, rolesPath, serversPath, 'G1');
 
   assert.equal(added, true);
   assert.deepEqual(loadGuildsFile(guildsPath), [{ guildId: 'G1' }]);
   assert.deepEqual(loadRolesFile(rolesPath), [
     { guildId: 'G1', admin: { roleIds: [], userIds: [] }, operator: { roleIds: [], userIds: [] }, common: { roleIds: [], userIds: [] } },
   ]);
-  assert.deepEqual(loadChannelsFile(channelsPath), [{ guildId: 'G1', botChannelId: null, serverChannelId: null }]);
-  assert.deepEqual(loadServersFile(serversPath), [{ guildId: 'G1', statusChannelId: null, servers: [] }]);
+  assert.deepEqual(loadServersFile(serversPath), [{ guildId: 'G1', statusChannelId: null, logChannelId: null, servers: [] }]);
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
@@ -182,11 +168,10 @@ test('ensureGuildEntry is a no-op for an already-registered guild', () => {
   const dir = tmpConfigDir();
   const guildsPath = path.join(dir, 'guilds.json');
   const rolesPath = path.join(dir, 'roles.json');
-  const channelsPath = path.join(dir, 'channels.json');
   const serversPath = path.join(dir, 'servers.json');
 
-  ensureGuildEntry(guildsPath, rolesPath, channelsPath, serversPath, 'G1');
-  const addedAgain = ensureGuildEntry(guildsPath, rolesPath, channelsPath, serversPath, 'G1');
+  ensureGuildEntry(guildsPath, rolesPath, serversPath, 'G1');
+  const addedAgain = ensureGuildEntry(guildsPath, rolesPath, serversPath, 'G1');
 
   assert.equal(addedAgain, false);
   assert.equal(loadGuildsFile(guildsPath).length, 1);
@@ -244,7 +229,7 @@ test('mutateGuildEntry returns null and does not create an entry for an unregist
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-test('loadConfig reads secrets from env and wires up all four config paths', () => {
+test('loadConfig reads secrets from env and wires up all three config paths', () => {
   const config = loadConfig({
     DISCORD_TOKEN: 'tok',
     DISCORD_CLIENT_ID: 'cid',
@@ -254,6 +239,5 @@ test('loadConfig reads secrets from env and wires up all four config paths', () 
   assert.equal(config.discordToken, 'tok');
   assert.deepEqual(config.guilds, []);
   assert.deepEqual(config.roles, []);
-  assert.deepEqual(config.channels, []);
   assert.deepEqual(config.servers, []);
 });

@@ -13,10 +13,6 @@ function levelForCommand(command) {
   }
 }
 
-function findGuildChannels(channels, guildId) {
-  return channels.find((c) => c.guildId === guildId) || null;
-}
-
 function actorLabel(entry) {
   return entry.actorId ? `${entry.actor} (Discord ID: ${entry.actorId})` : entry.actor;
 }
@@ -174,22 +170,18 @@ async function postToChannel(client, channelId, entry) {
   }
 }
 
-function createNotifier(client, getChannels) {
-  return {
-    botLog(guildId, entry) {
-      const channels = findGuildChannels(getChannels(), guildId);
-      return postToChannel(client, channels?.botChannelId, entry);
-    },
-    serverLog(guildId, entry) {
-      const channels = findGuildChannels(getChannels(), guildId);
-      return postToChannel(client, channels?.serverChannelId, entry);
-    },
-  };
+// One shared logs channel per guild -- bot events and server events both
+// land in the same place, per explicit feedback that the earlier separate
+// bot-log/server-log channel split wasn't needed. botLog/serverLog stay as
+// two methods (most call sites already use whichever fits semantically) but
+// both resolve to the same channel via `getLogChannelId(guildId)`.
+function createNotifier(client, getLogChannelId) {
+  const log = (guildId, entry) => postToChannel(client, getLogChannelId(guildId), entry);
+  return { botLog: log, serverLog: log };
 }
 
 module.exports = {
   createNotifier,
-  findGuildChannels,
   formatAuditEntry,
   formatStructuredLog,
   buildLogEmbed,

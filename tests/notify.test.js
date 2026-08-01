@@ -1,12 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createNotifier, findGuildChannels, formatAuditEntry, formatStructuredLog } = require('../src/notify');
-
-test('findGuildChannels returns the matching entry or null', () => {
-  const channels = [{ guildId: 'G1', botChannelId: 'B1', serverChannelId: 'S1' }];
-  assert.deepEqual(findGuildChannels(channels, 'G1'), channels[0]);
-  assert.equal(findGuildChannels(channels, 'UNKNOWN'), null);
-});
+const { createNotifier, formatAuditEntry, formatStructuredLog } = require('../src/notify');
 
 test('formatStructuredLog generates logfmt inside ```ansi codeblock with pure white timestamp and uppercase level', () => {
   const logStr = formatStructuredLog({
@@ -86,7 +80,7 @@ test('formatAuditEntry assigns a sensible severity level per command', () => {
 test('createNotifier does not touch the Discord client when no channel is configured', async () => {
   let fetchCalled = false;
   const fakeClient = { channels: { fetch: async () => { fetchCalled = true; } } };
-  const notify = createNotifier(fakeClient, () => [{ guildId: 'G1', botChannelId: null, serverChannelId: null }]);
+  const notify = createNotifier(fakeClient, () => null);
 
   await notify.botLog('G1', { description: 'hello' });
   await notify.serverLog('G1', { description: 'hello' });
@@ -94,17 +88,29 @@ test('createNotifier does not touch the Discord client when no channel is config
   assert.equal(fetchCalled, false);
 });
 
-test('createNotifier sends rendered clean markdown content to the configured channel', async () => {
+test('createNotifier sends rendered clean markdown content to the one configured log channel', async () => {
   let sentTo, sentPayload;
   const fakeChannel = { send: async (payload) => { sentPayload = payload; } };
   const fakeClient = { channels: { fetch: async (id) => { sentTo = id; return fakeChannel; } } };
-  const notify = createNotifier(fakeClient, () => [{ guildId: 'G1', botChannelId: 'B1', serverChannelId: 'S1' }]);
+  const notify = createNotifier(fakeClient, (guildId) => (guildId === 'G1' ? 'L1' : null));
 
   await notify.serverLog('G1', { title: 'Save', description: 'server event', level: 'info' });
 
-  assert.equal(sentTo, 'S1');
+  assert.equal(sentTo, 'L1');
   assert.ok(sentPayload.content.startsWith('```ansi\n'));
   assert.ok(sentPayload.content.includes('[INFO]'));
   assert.ok(sentPayload.content.includes('event=save'));
   assert.ok(sentPayload.content.includes('"server event"'));
+});
+
+test('createNotifier botLog and serverLog both resolve to the same shared channel', async () => {
+  const sent = [];
+  const fakeChannel = { send: async (payload) => { sent.push(payload); } };
+  const fakeClient = { channels: { fetch: async () => fakeChannel } };
+  const notify = createNotifier(fakeClient, () => 'L1');
+
+  await notify.botLog('G1', { description: 'bot event' });
+  await notify.serverLog('G1', { description: 'server event' });
+
+  assert.equal(sent.length, 2);
 });

@@ -32,14 +32,6 @@ function loadRolesFile(rolesPath) {
   }));
 }
 
-function loadChannelsFile(channelsPath) {
-  return readJsonArray(channelsPath).map((entry) => ({
-    guildId: entry.guildId,
-    botChannelId: entry.botChannelId || null,
-    serverChannelId: entry.serverChannelId || null,
-  }));
-}
-
 // Each guild's Palworld connection(s) -- a guild can list zero, one, or many
 // servers, each identified by a short `label`. A guild with no complete
 // server entries is structurally incapable of controlling anything,
@@ -76,6 +68,9 @@ function loadServersFile(serversPath) {
     // resulting ID back here via mutateGuildEntry -- the human only ever
     // needs to *edit* this to point at a different existing channel.
     statusChannelId: entry.statusChannelId || null,
+    // One shared logs channel per guild (bot + server events both go here --
+    // no separate bot/server split), hand-set by editing this file directly.
+    logChannelId: entry.logChannelId || null,
     servers: Array.isArray(entry.servers) ? entry.servers.map(normalizeServer) : [],
   }));
 }
@@ -152,11 +147,11 @@ function findGuildServer(servers, guildId, label) {
   return available.length === 1 ? available[0] : null;
 }
 
-// Registers a newly-seen guild across all four config files with empty/no-op
-// defaults (no roles granted, no channels to post to, no server to control)
-// so the human only ever has to *edit* values, never create the entries by
-// hand. Returns true the first time a guild is seen, false on every call after.
-function ensureGuildEntry(guildsPath, rolesPath, channelsPath, serversPath, guildId) {
+// Registers a newly-seen guild across the config files with empty/no-op
+// defaults (no roles granted, no server to control) so the human only ever
+// has to *edit* values, never create the entries by hand. Returns true the
+// first time a guild is seen, false on every call after.
+function ensureGuildEntry(guildsPath, rolesPath, serversPath, guildId) {
   const guilds = readJsonArray(guildsPath);
   if (guilds.some((g) => g.guildId === guildId)) return false;
 
@@ -168,11 +163,8 @@ function ensureGuildEntry(guildsPath, rolesPath, channelsPath, serversPath, guil
     { guildId, admin: { roleIds: [], userIds: [] }, operator: { roleIds: [], userIds: [] }, common: { roleIds: [], userIds: [] } },
   ]);
 
-  const channels = readJsonArray(channelsPath);
-  writeJsonArray(channelsPath, [...channels, { guildId, botChannelId: '', serverChannelId: '' }]);
-
   const servers = readJsonArray(serversPath);
-  writeJsonArray(serversPath, [...servers, { guildId, statusChannelId: null, servers: [] }]);
+  writeJsonArray(serversPath, [...servers, { guildId, statusChannelId: null, logChannelId: null, servers: [] }]);
 
   return true;
 }
@@ -212,7 +204,6 @@ function loadConfig(env = process.env) {
   const configDir = env.CONFIG_DIR || path.join(__dirname, '..', 'config');
   const guildsPath = env.GUILDS_CONFIG_PATH || path.join(configDir, 'guilds.json');
   const rolesPath = env.ROLES_CONFIG_PATH || path.join(configDir, 'roles.json');
-  const channelsPath = env.CHANNELS_CONFIG_PATH || path.join(configDir, 'channels.json');
   const serversPath = env.SERVERS_CONFIG_PATH || path.join(configDir, 'servers.json');
 
   return {
@@ -221,11 +212,9 @@ function loadConfig(env = process.env) {
     auditLogPath: env.AUDIT_LOG_PATH || path.join(__dirname, '..', 'data', 'audit-log.json'),
     guildsPath,
     rolesPath,
-    channelsPath,
     serversPath,
     guilds: loadGuildsFile(guildsPath),
     roles: loadRolesFile(rolesPath),
-    channels: loadChannelsFile(channelsPath),
     servers: loadServersFile(serversPath),
   };
 }
@@ -234,7 +223,6 @@ module.exports = {
   loadConfig,
   loadGuildsFile,
   loadRolesFile,
-  loadChannelsFile,
   loadServersFile,
   findGuildServer,
   findGuildServers,

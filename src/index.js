@@ -6,7 +6,6 @@ const {
   ensureGuildEntry,
   loadGuildsFile,
   loadRolesFile,
-  loadChannelsFile,
   loadServersFile,
   findGuildServer,
   findGuildServers,
@@ -56,7 +55,7 @@ const client = new Client({
   }),
 });
 
-const notify = createNotifier(client, () => config.channels);
+const notify = createNotifier(client, (guildId) => config.servers.find((s) => s.guildId === guildId)?.logChannelId || null);
 const expectedActions = createExpectedActions();
 
 const auditLog = {
@@ -120,13 +119,12 @@ function resolveServerCtx(guildId, label) {
 }
 
 async function onboardGuild(guildId, guildName) {
-  const added = ensureGuildEntry(config.guildsPath, config.rolesPath, config.channelsPath, config.serversPath, guildId);
+  const added = ensureGuildEntry(config.guildsPath, config.rolesPath, config.serversPath, guildId);
   if (added) {
     config.guilds = loadGuildsFile(config.guildsPath);
     config.roles = loadRolesFile(config.rolesPath);
-    config.channels = loadChannelsFile(config.channelsPath);
     config.servers = loadServersFile(config.serversPath);
-    console.log(`Joined "${guildName}" (${guildId}) — added stub entries to config/roles.json, config/channels.json, and config/servers.json. This guild cannot control any Palworld server until config/servers.json is filled in for it.`);
+    console.log(`Joined "${guildName}" (${guildId}) — added stub entries to config/roles.json and config/servers.json. This guild cannot control any Palworld server until config/servers.json is filled in for it.`);
   }
 
   try {
@@ -141,13 +139,12 @@ async function onboardGuild(guildId, guildName) {
 // replace the file on save (write temp + rename), which breaks a watch held on
 // the original inode. Debounced since a single save can fire multiple events.
 function watchConfigFiles() {
-  const dir = path.dirname(config.guildsPath); // guilds/roles/channels/servers all live in config/
+  const dir = path.dirname(config.guildsPath); // guilds/roles/servers all live in config/
   fs.mkdirSync(dir, { recursive: true });
 
   const reloaders = {
     [path.basename(config.guildsPath)]: () => { config.guilds = loadGuildsFile(config.guildsPath); },
     [path.basename(config.rolesPath)]: () => { config.roles = loadRolesFile(config.rolesPath); },
-    [path.basename(config.channelsPath)]: () => { config.channels = loadChannelsFile(config.channelsPath); },
     [path.basename(config.serversPath)]: () => { config.servers = loadServersFile(config.serversPath); },
   };
 
@@ -202,7 +199,7 @@ watchPm2({
         level: 'warning',
         msg: `Bot process ${processName} was ${verb}`,
       };
-      for (const entry of config.channels) notify.botLog(entry.guildId, message).catch(() => {});
+      for (const entry of config.guilds) notify.botLog(entry.guildId, message).catch(() => {});
       return;
     }
 
