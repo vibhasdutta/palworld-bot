@@ -10,11 +10,35 @@ test('controlService runs pm2 <action> <name> via the injected execFile', async 
     cb(null, 'ok', '');
   };
 
-  const result = await controlService('palworld', 'restart', fakeExecFile);
+  const result = await controlService('palworld', 'start', fakeExecFile);
 
   assert.equal(result, 'ok');
   assert.equal(capturedCmd, 'pm2');
-  assert.deepEqual(capturedArgs, ['restart', 'palworld']);
+  assert.deepEqual(capturedArgs, ['start', 'palworld']);
+});
+
+test('controlService runs restart as an explicit pm2 stop then pm2 start, not pm2 restart', async () => {
+  const calls = [];
+  const fakeExecFile = (cmd, args, cb) => {
+    calls.push(args);
+    cb(null, 'ok', '');
+  };
+
+  const result = await controlService('palworld', 'restart', fakeExecFile);
+
+  assert.equal(result, 'ok');
+  assert.deepEqual(calls, [['stop', 'palworld'], ['start', 'palworld']]);
+});
+
+test('controlService restart does not start if stop fails', async () => {
+  const calls = [];
+  const fakeExecFile = (cmd, args, cb) => {
+    calls.push(args);
+    cb(new Error('exit 1'), '', 'process not found');
+  };
+
+  await assert.rejects(() => controlService('palworld', 'restart', fakeExecFile), /process not found/);
+  assert.deepEqual(calls, [['stop', 'palworld']]);
 });
 
 test('controlService rejects unsupported actions without touching execFile', async () => {

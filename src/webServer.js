@@ -358,6 +358,10 @@ const HTML_TEMPLATE = (user, serverName, serverLabel, settings, schema, categori
   </div>
 
   <div class="main-container">
+    <div class="setting-item" style="border-color: var(--warning); margin-bottom: 1.5rem;">
+      <div class="setting-label" style="color: var(--warning);">⚠️ Existing worlds may ignore these changes</div>
+      <div class="setting-desc">Once a world has been generated, Palworld stores most world-balance settings (rates, death penalty, building rules) in <code>WorldOption.sav</code> and stops reading them from this ini file -- only server identity, ports, player caps and passwords keep reading from here. If a saved change doesn't seem to take effect after a restart, that's why. This editor does not touch <code>WorldOption.sav</code>.</div>
+    </div>
     <input type="text" class="search-box" id="searchInput" placeholder="🔍 Search settings by name...">
     <div id="settingsContainer"></div>
   </div>
@@ -444,7 +448,8 @@ const HTML_TEMPLATE = (user, serverName, serverLabel, settings, schema, categori
         } else if (field.type === 'number') {
           const stepAttr = field.step ? 'step="' + field.step + '"' : '';
           const minAttr = field.min !== undefined ? 'min="' + field.min + '"' : '';
-          inputHtml = '<label class="setting-label" for="input-' + field.key + '">' + (field.label || field.key) + '</label>' + (field.description ? '<div class="setting-desc">' + field.description + '</div>' : '') + '<input type="number" id="input-' + field.key + '" value="' + (val !== undefined ? String(val).replace(/"/g, '&quot;') : '') + '" ' + stepAttr + ' ' + minAttr + '>';
+          const maxAttr = field.max !== undefined ? 'max="' + field.max + '"' : '';
+          inputHtml = '<label class="setting-label" for="input-' + field.key + '">' + (field.label || field.key) + '</label>' + (field.description ? '<div class="setting-desc">' + field.description + '</div>' : '') + '<input type="number" id="input-' + field.key + '" value="' + (val !== undefined ? String(val).replace(/"/g, '&quot;') : '') + '" ' + stepAttr + ' ' + minAttr + ' ' + maxAttr + '>';
         } else if (field.type === 'password') {
           inputHtml = '<label class="setting-label" for="input-' + field.key + '">' + (field.label || field.key) + '</label>' + (field.description ? '<div class="setting-desc">' + field.description + '</div>' : '') + '<div class="password-wrapper"><input type="password" id="input-' + field.key + '" value="' + (val !== undefined ? String(val).replace(/"/g, '&quot;') : '') + '"><button type="button" class="toggle-password-btn" title="Toggle password visibility" onclick="togglePassword(this)">👁️</button></div>';
         } else {

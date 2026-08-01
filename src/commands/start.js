@@ -3,7 +3,7 @@ const { successEmbed, errorEmbed } = require('../embeds');
 const { addServerOption } = require('../serverOption');
 
 const data = addServerOption(new SlashCommandBuilder().setName('start').setDescription('Start the Palworld server process'));
-const tier = 'admin';
+const tier = 'operator';
 
 async function execute(interaction, ctx) {
   try {

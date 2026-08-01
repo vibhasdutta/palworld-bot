@@ -7,11 +7,13 @@ const guilds = [
     guildId: 'G1',
     admin: { roleIds: ['A'], userIds: ['ADMIN_USER'] },
     operator: { roleIds: ['B'], userIds: ['OP_USER'] },
+    common: { roleIds: ['C'], userIds: ['COMMON_USER'] },
   },
   {
     guildId: 'G2',
     admin: { roleIds: ['A2'], userIds: [] },
     operator: { roleIds: [], userIds: [] },
+    common: { roleIds: [], userIds: [] },
   },
 ];
 
@@ -41,8 +43,21 @@ test('resolveTier returns operator when member ID is individually listed as oper
   assert.equal(resolveTier({ roleIds: [], userId: 'OP_USER' }, g1), 'operator');
 });
 
+test('resolveTier returns common when member has only a common role', () => {
+  assert.equal(resolveTier({ roleIds: ['C'], userId: 'nobody' }, g1), 'common');
+});
+
+test('resolveTier returns common when member ID is individually listed as common', () => {
+  assert.equal(resolveTier({ roleIds: [], userId: 'COMMON_USER' }, g1), 'common');
+});
+
 test('resolveTier returns null when member matches neither roles nor user IDs', () => {
   assert.equal(resolveTier({ roleIds: ['X'], userId: 'nobody' }, g1), null);
+});
+
+test('resolveTier tolerates a guild config missing the common tier entirely', () => {
+  const legacy = { guildId: 'G3', admin: { roleIds: [], userIds: [] }, operator: { roleIds: [], userIds: [] } };
+  assert.equal(resolveTier({ roleIds: ['C'], userId: 'nobody' }, legacy), null);
 });
 
 test('resolveTier returns null when the guild has no config (bot in an unconfigured server)', () => {
@@ -54,14 +69,22 @@ test('a role/user from one guild does not grant access in another guild', () => 
   assert.equal(resolveTier({ roleIds: ['A'], userId: 'ADMIN_USER' }, g2), null);
 });
 
-test('hasAccess: admin can use operator-tier commands', () => {
+test('hasAccess: admin can use operator-tier and common-tier commands', () => {
   assert.equal(hasAccess('admin', 'operator'), true);
+  assert.equal(hasAccess('admin', 'common'), true);
 });
 
-test('hasAccess: operator cannot use admin-tier commands', () => {
+test('hasAccess: operator can use common-tier commands but not admin-tier', () => {
+  assert.equal(hasAccess('operator', 'common'), true);
   assert.equal(hasAccess('operator', 'admin'), false);
+});
+
+test('hasAccess: common cannot use operator- or admin-tier commands', () => {
+  assert.equal(hasAccess('common', 'operator'), false);
+  assert.equal(hasAccess('common', 'admin'), false);
 });
 
 test('hasAccess: no tier is always denied', () => {
   assert.equal(hasAccess(null, 'operator'), false);
+  assert.equal(hasAccess(null, 'common'), false);
 });

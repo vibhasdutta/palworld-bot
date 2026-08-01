@@ -10,7 +10,7 @@ const data = addServerOption(new SlashCommandBuilder()
   .setDescription('Stop the Palworld server')
   .addIntegerOption((opt) => opt.setName('waittime').setDescription('Seconds to warn players before shutdown').setMinValue(0))
   .addBooleanOption((opt) => opt.setName('force').setDescription('Force stop immediately, skipping the in-game warning')));
-const tier = 'admin';
+const tier = 'operator';
 
 async function execute(interaction, ctx) {
   const waittime = interaction.options.getInteger('waittime') ?? 5;

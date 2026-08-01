@@ -6,7 +6,7 @@ const { formatStructuredLog } = require('../notify');
 const { cleanPlayerId } = require('../playerPoller');
 
 const data = addServerOption(new SlashCommandBuilder().setName('players').setDescription('List connected players'));
-const tier = 'operator';
+const tier = 'common';
 
 async function execute(interaction, ctx) {
   try {

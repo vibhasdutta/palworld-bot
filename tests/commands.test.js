@@ -9,7 +9,7 @@ test('every command module exports a matching name, a valid tier, and an execute
   for (const [name, command] of commands) {
     assert.equal(typeof command.data.name, 'string');
     assert.equal(command.data.name, name);
-    assert.ok(['admin', 'operator'].includes(command.tier), `${name} has an invalid tier: ${command.tier}`);
+    assert.ok(['admin', 'operator', 'common'].includes(command.tier), `${name} has an invalid tier: ${command.tier}`);
     assert.equal(typeof command.execute, 'function');
   }
 });

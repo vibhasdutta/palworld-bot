@@ -28,6 +28,7 @@ function loadRolesFile(rolesPath) {
     guildId: entry.guildId,
     admin: normalizeTier(entry.admin),
     operator: normalizeTier(entry.operator),
+    common: normalizeTier(entry.common),
   }));
 }
 
@@ -158,7 +159,7 @@ function ensureGuildEntry(guildsPath, rolesPath, channelsPath, serversPath, guil
   const roles = readJsonArray(rolesPath);
   writeJsonArray(rolesPath, [
     ...roles,
-    { guildId, admin: { roleIds: [], userIds: [] }, operator: { roleIds: [], userIds: [] } },
+    { guildId, admin: { roleIds: [], userIds: [] }, operator: { roleIds: [], userIds: [] }, common: { roleIds: [], userIds: [] } },
   ]);
 
   const channels = readJsonArray(channelsPath);
@@ -179,7 +180,7 @@ function mutateGuildRoles(rolesPath, guildId, mutate) {
   const roles = loadRolesFile(rolesPath);
   let entry = roles.find((r) => r.guildId === guildId);
   if (!entry) {
-    entry = { guildId, admin: { roleIds: [], userIds: [] }, operator: { roleIds: [], userIds: [] } };
+    entry = { guildId, admin: { roleIds: [], userIds: [] }, operator: { roleIds: [], userIds: [] }, common: { roleIds: [], userIds: [] } };
     roles.push(entry);
   }
   mutate(entry);

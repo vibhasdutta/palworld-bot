@@ -4,7 +4,7 @@ const { buildStatusEmbed } = require('../statusEmbed');
 const { addServerOption } = require('../serverOption');
 
 const data = addServerOption(new SlashCommandBuilder().setName('status').setDescription('Show Palworld server status'));
-const tier = 'operator';
+const tier = 'common';
 
 async function execute(interaction, ctx) {
   try {

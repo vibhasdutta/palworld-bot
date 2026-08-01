@@ -40,7 +40,7 @@ test('loadRolesFile reads roleIds/userIds per tier and defaults missing fields t
   fs.writeFileSync(rolesPath, JSON.stringify([{ guildId: 'G1', admin: { roleIds: ['1'] } }]));
 
   assert.deepEqual(loadRolesFile(rolesPath), [
-    { guildId: 'G1', admin: { roleIds: ['1'], userIds: [] }, operator: { roleIds: [], userIds: [] } },
+    { guildId: 'G1', admin: { roleIds: ['1'], userIds: [] }, operator: { roleIds: [], userIds: [] }, common: { roleIds: [], userIds: [] } },
   ]);
   fs.rmSync(dir, { recursive: true, force: true });
 });
@@ -170,7 +170,7 @@ test('ensureGuildEntry registers a new guild across all four files with empty de
   assert.equal(added, true);
   assert.deepEqual(loadGuildsFile(guildsPath), [{ guildId: 'G1' }]);
   assert.deepEqual(loadRolesFile(rolesPath), [
-    { guildId: 'G1', admin: { roleIds: [], userIds: [] }, operator: { roleIds: [], userIds: [] } },
+    { guildId: 'G1', admin: { roleIds: [], userIds: [] }, operator: { roleIds: [], userIds: [] }, common: { roleIds: [], userIds: [] } },
   ]);
   assert.deepEqual(loadChannelsFile(channelsPath), [{ guildId: 'G1', botChannelId: null, serverChannelId: null }]);
   assert.deepEqual(loadServersFile(serversPath), [{ guildId: 'G1', servers: [] }]);
@@ -196,7 +196,7 @@ test('mutateGuildRoles adds to an existing guild\'s operator roleIds and persist
   const dir = tmpConfigDir();
   const rolesPath = path.join(dir, 'roles.json');
   fs.writeFileSync(rolesPath, JSON.stringify([
-    { guildId: 'G1', admin: { roleIds: [], userIds: [] }, operator: { roleIds: [], userIds: [] } },
+    { guildId: 'G1', admin: { roleIds: [], userIds: [] }, operator: { roleIds: [], userIds: [] }, common: { roleIds: [], userIds: [] } },
   ]));
 
   const entry = mutateGuildRoles(rolesPath, 'G1', (e) => e.operator.roleIds.push('R1'));
@@ -214,7 +214,7 @@ test('mutateGuildRoles creates the guild entry if it does not exist yet', () => 
   mutateGuildRoles(rolesPath, 'NEW', (e) => e.operator.userIds.push('U1'));
 
   assert.deepEqual(loadRolesFile(rolesPath), [
-    { guildId: 'NEW', admin: { roleIds: [], userIds: [] }, operator: { roleIds: [], userIds: ['U1'] } },
+    { guildId: 'NEW', admin: { roleIds: [], userIds: [] }, operator: { roleIds: [], userIds: ['U1'] }, common: { roleIds: [], userIds: [] } },
   ]);
   fs.rmSync(dir, { recursive: true, force: true });
 });
